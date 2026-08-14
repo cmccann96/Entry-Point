@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from optcg.friction import (
+    breakeven_value_ratio,
     FrictionConfig,
     SaleChannel,
     breakeven_discount,
@@ -105,3 +106,40 @@ class TestBreakevenDiscount:
     def test_rejects_non_positive_median(self):
         with pytest.raises(ValueError):
             breakeven_discount(0.0, SaleChannel.LOCAL_TO_LOCAL, CFG)
+
+
+class TestBreakevenValueRatio:
+    """The cross-variant test -- the one that matches what the strategy does."""
+
+    def test_ratio_is_actually_breakeven(self):
+        for ask in (25.0, 70.0, 300.0, 1500.0):
+            for channel in SaleChannel:
+                ratio = breakeven_value_ratio(ask, channel, CFG)
+                trade = evaluate_trade(ask, ask * ratio, channel, CFG)
+                assert trade.net_ev_aud == pytest.approx(0.0, abs=0.01)
+
+    def test_cheap_asks_are_viable_on_a_large_value_gap(self):
+        # The correction that matters: breakeven_discount says a $25 card needs
+        # an impossible discount, but a $25 ask on a genuinely $1,500 card is
+        # hugely profitable. Different question, different answer.
+        assert breakeven_discount(25.0, SaleChannel.OVERSEAS_TO_EBAY_AU, CFG) >= 1.0
+        assert breakeven_value_ratio(25.0, SaleChannel.OVERSEAS_TO_EBAY_AU, CFG) < 3.0
+        assert evaluate_trade(
+            25.0, 1500.0, SaleChannel.OVERSEAS_TO_EBAY_AU, CFG
+        ).net_ev_aud > 1000.0
+
+    def test_required_ratio_falls_as_fixed_costs_amortise(self):
+        ch = SaleChannel.OVERSEAS_TO_EBAY_AU
+        assert breakeven_value_ratio(25.0, ch, CFG) > breakeven_value_ratio(700.0, ch, CFG)
+
+    def test_customs_threshold_pushes_the_ratio_back_up(self):
+        ch = SaleChannel.OVERSEAS_TO_EBAY_AU
+        assert breakeven_value_ratio(1100.0, ch, CFG) > breakeven_value_ratio(900.0, ch, CFG)
+
+    def test_local_channel_needs_a_smaller_gap(self):
+        assert breakeven_value_ratio(200.0, SaleChannel.LOCAL_TO_LOCAL, CFG) < \
+               breakeven_value_ratio(200.0, SaleChannel.OVERSEAS_TO_EBAY_AU, CFG)
+
+    def test_rejects_non_positive_ask(self):
+        with pytest.raises(ValueError):
+            breakeven_value_ratio(0.0, SaleChannel.LOCAL_TO_LOCAL, CFG)

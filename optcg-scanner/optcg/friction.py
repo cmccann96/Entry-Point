@@ -129,6 +129,44 @@ def evaluate_trade(
     )
 
 
+def breakeven_value_ratio(
+    ask_aud: float,
+    channel: SaleChannel,
+    cfg: FrictionConfig | None = None,
+) -> float:
+    """How many times the ask a card must truly be worth to break even.
+
+    This is the right friction test for a CROSS-VARIANT trade -- buying at the
+    price of the variant the seller claims, and selling at the price of the
+    variant the card actually is. ``breakeven_discount`` answers a different
+    question (buying below a variant's own median) and is far more pessimistic
+    at low prices, because it assumes the upside is capped by that same
+    variant's value.
+
+    The distinction matters in the expensive direction. A $25 ask on a card
+    truly worth $1,500 nets over $1,200; judged by ``breakeven_discount`` the
+    same price point looks arithmetically dead. Using the discount test to set a
+    minimum ask would filter out the best trades this strategy can find.
+
+    Returns the multiple of ``ask_aud`` at which net EV is exactly zero. Lower
+    is better. Note it is not monotonic: it falls as fixed costs amortise, then
+    rises again once the ask crosses the customs threshold.
+    """
+    cfg = cfg or FrictionConfig()
+    if ask_aud <= 0:
+        raise ValueError("ask_aud must be positive")
+
+    cost = landed_cost(ask_aud, channel, cfg)
+    fee_rate = (
+        cfg.ebay_au_fee_rate
+        if channel is SaleChannel.OVERSEAS_TO_EBAY_AU
+        else cfg.local_fee_rate
+    )
+    # cost = sale * (1 - fee_rate) - outbound_postage  =>  solve for sale
+    sale = (cost + cfg.outbound_postage_aud) / (1.0 - fee_rate)
+    return sale / ask_aud
+
+
 def breakeven_discount(
     median_aud: float,
     channel: SaleChannel,

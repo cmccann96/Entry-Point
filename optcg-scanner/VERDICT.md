@@ -125,8 +125,58 @@ Breakeven discount by price point (overseas → eBay AU):
 
 Two things worth internalising:
 
-- **Below ~A$300 the strategy is arithmetically dead overseas.** A A$50 card needs a 67% discount to break even. Fixed costs do not amortise. Any variant priced under a few hundred dollars should be excluded from overseas hunting outright — which removes the plain SEC and standard parallel tiers of OP06-118 entirely.
+- **Below ~A$300 the *same-variant* trade is arithmetically dead overseas.** A A$50 card needs a 67% discount to break even against its own median. Fixed costs do not amortise. **⚠️ See §4a — this does NOT generalise to the cross-variant trade, and reading it as a minimum ask would exclude the best opportunities the strategy can find.**
 - **There is a non-monotonic notch at A$1,000** where formal customs clearance (~A$50–90) kicks in. Breakeven *worsens* from 23.2% to 26.7% as the card gets more expensive. A card asking A$1,050 is a worse trade than the same card asking A$990. The scanner should treat the A$950–1,150 band as a dead zone rather than scoring it smoothly.
+
+---
+
+## 4a. Correction — the price floor does not apply to the trade being made
+
+§4's table answers "how far below a variant's own median must I buy to profit
+by reselling at that median." That is the **same-variant** trade, and it is not
+what this strategy does.
+
+The strategy buys at the price of the variant the seller **claims** and sells at
+the price of the variant the card **is**. The upside is not capped by the
+claimed variant's value, so fixed costs are measured against a far larger gap:
+
+| Ask | True value | Net EV (overseas → eBay AU) | Return on cost |
+|---|---|---|---|
+| **$25** | $1,500 | **+$1,252** | **+3,077%** |
+| $70 | $1,500 | +$1,203 | +1,333% |
+| $200 | $1,500 | +$1,060 | +454% |
+| $700 | $1,500 | +$510 | +65% |
+| **$1,098** | $1,500 | **+$2** | **+0%** |
+
+**The relationship inverts: a low ask is an advantage.** A$12 postage and 10% GST
+are trivial against a 20× gap, the percentage return rises as the denominator
+falls, and a cheap ask stays under the A$1,000 customs threshold — the clearance
+notch applies to what is *paid*, not to what the card is worth.
+
+The right friction test is therefore a **value ratio**, not a discount
+(`friction.breakeven_value_ratio`):
+
+| Ask | Min true value | Ratio needed |
+|---|---|---|
+| $25 | $61 | **2.4×** |
+| $70 | $117 | 1.7× |
+| $200 | $282 | 1.4× |
+| $700 | $914 | 1.3× |
+| $1,098 | $1,498 | 1.4× (customs) |
+
+Working rule: **true value ≥ 2× the ask** clears friction at any price point.
+
+**Friction is not the binding constraint on ask price — seller attention is.**
+Under ~A$50 a seller probably does have a cheap card. Above ~A$1,000 they have
+researched it, ratios are thin, and customs applies. The exploitable band is
+roughly **A$50–400**, where a seller is confident enough to list carefully and
+not curious enough to check which variant they hold.
+
+That makes the ask band a weak filter and the **variant price ratio** the real
+selection criterion — cards whose cheap variant is the default assumption while
+an expensive variant shares the card number. The brief's original instinct to
+pick "20 card numbers with high max/min variant ratios" was right, and this is
+the quantitative reason.
 
 ---
 
