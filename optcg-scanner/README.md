@@ -13,11 +13,34 @@ uv venv && uv pip install -e ".[dev]"
 
 uv run optcg-backtest feasibility   # analytic study — runs today, needs no credentials
 uv run optcg-backtest friction      # breakeven discount by price point and channel
-uv run optcg-backtest run           # Stage 1 backtest — needs a real sold-sales export
-uv run pytest                       # 81 tests
+uv run optcg-backtest triage        # why cheapness ranking discards the good listings
+uv run optcg-backtest power         # how much data settles the question
+uv run optcg-backtest verify        # mislabel rate vs image ground truth — THE test
+uv run optcg-backtest measure       # listing-failure bounds from titles alone
+uv run optcg-backtest run           # full Stage 1 backtest
+uv run pytest                       # 163 tests
 ```
 
-`run` exits `3` with a remediation message until you supply real data. That is intended behaviour, not a bug.
+Commands needing data exit `3` with a remediation message until you supply it. That is intended behaviour, not a bug.
+
+## The one measurement that decides this
+
+**The edge is sellers writing the *wrong* thing, not writing nothing.** Titles cannot measure how often titles lie — only images can. So the decisive number is: *how often is a title wrong in the profitable direction, on a card that then sold below its true variant's median?*
+
+You can measure it by hand in an afternoon, with no API:
+
+1. Open ~50 sold listings for cards with a wide variant price range.
+2. Look at each card and record what it **actually** is. Four tells:
+   - ★ above the rarity code → parallel or above
+   - manga panels vs painted full-bleed vs painted inside-frame
+   - gold stamp, WINNER stamp, or printed serial
+   - slabbed? grade and grader
+3. Put that in a `true_variant` column alongside date, price, and full title.
+4. `uv run optcg-backtest verify`
+
+It reports `mislabel_rate`, `under_claim_rate` (the edge), `over_claimed` (the trap), and **`exploitable_rate`** — under-claimed *and* underpriced. Only the last is tradeable: a comic parallel described as "parallel" that still fetched full comic money was priced correctly by bidders who looked at the photo.
+
+See [`VERDICT.md`](VERDICT.md) §6a for why this replaces the earlier bare-title analysis.
 
 ---
 
@@ -67,6 +90,10 @@ OP06-118,2026-04-02,860.00,USD,"OP06-118 Zoro SEC parallel",,,
 
 **Three ambiguity signals, not one.** Posterior entropy alone is insufficient — with a concentrated population prior, a title carrying no information yields a *concentrated* posterior and so scores as low-entropy, i.e. confidently identified. See `VERDICT.md` §7. The module exposes `ambiguity` (entropy), `information_gain` (KL from prior — did the seller disambiguate anything), `is_undescribed`, and `price_dispersion` (what the ambiguity is worth in dollars).
 
+**Never rank on cheapness against the claimed variant.** It is *anti-correlated* with the opportunity. A $1,500 comic parallel listed as "parallel" at $200 is ~3× too expensive against the standard-parallel median, so a cheapness screen discards exactly the listing you want. `valuation.py` scores every variant left live — `blind_ev`, `upside_ev`, and `information_value` (what resolving the variant is worth) — and triages on the last. Locked in by `test_cheapness_screen_would_discard_the_prize`.
+
+**Per-variant medians are contaminated by the error being measured.** Historical sales are bucketed by variant *from their titles*, so mislabelled sales land in the wrong bucket and skew the benchmark. There is no fix from price data alone; the `verify` path is what bounds the damage. Treat measured per-variant medians as provisional until the mislabel rate is known.
+
 ---
 
 ## Layout
@@ -74,12 +101,16 @@ OP06-118,2026-04-02,860.00,USD,"OP06-118 Zoro SEC parallel",,,
 ```
 optcg/
   variants.py     card-number extraction, 4-axis taxonomy, Bayesian posterior
+  valuation.py    EV across live variants; information-value triage
+  verification.py mislabel rate vs image ground truth — the decisive measurement
   friction.py     AUD round-trip costs: GST, customs, postage, platform fees
   backtest.py     Stage 1 harness + gate enforcement
+  power.py        sample sizing; listing-failure bounds
   sensitivity.py  analytic feasibility study from measured summary stats
+  ingest.py       forgiving loader for hand-collected exports (local files only)
   stats.py        stdlib-only quantiles, normal CDF/PPF
   config.py       TOML settings + .env secrets
-  cli.py          feasibility / run / friction
+  cli.py          feasibility / triage / power / verify / measure / run / friction
   sources/
     base.py           contracts; DataUnavailable, SourceCapabilityError
     csv_source.py     Terapeak export — the only compliant Stage 1 input

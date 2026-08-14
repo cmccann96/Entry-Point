@@ -157,6 +157,110 @@ If (1) and (3) come back showing a listing-failure rate above ~20% with a defens
 
 ---
 
+## 6a. Correction — the failure mode was mis-specified (2026-08-14, later)
+
+Everything above measures the wrong thing, and the operator caught it.
+
+Sections 3 and 6 treat the failure mode as a **missing** descriptor — the
+$30.64 sale under a bare title. That was one vivid observation. The brief's own
+framing names the systematic case: *"Sellers describe all three as 'SEC' or
+'parallel'."* The routine failure is a seller writing something **confident and
+wrong**, not writing nothing.
+
+This matters because text cannot detect it. If the title is wrong, trusting the
+title yields the wrong answer by construction. Only the image resolves it.
+
+Three consequences, in increasing order of severity:
+
+**The `is_undescribed` filter is far too narrow.** It catches empty titles and
+almost nothing else. The larger population is titles that are *truthful but
+under-specified*: base rarity and treatment are orthogonal axes, so a comic
+parallel of a SEC card genuinely *is* a "SEC". A seller writing "SEC" is not
+lying — they are giving you one axis out of four. The right detector is
+posterior spread over price-relevant variants (`price_dispersion`), not absence
+of features.
+
+**The benchmark is contaminated by the error being measured.** Per-variant
+trailing medians are built by assigning historical sales to variants *from their
+titles*. If sellers mislabel, mislabelled sales land in the wrong bucket,
+dragging the manga median down and the parallel median up. The yardstick is made
+of the same faulty material as the thing being measured. Nothing in §2 accounts
+for this, and it biases the measured dispersion in an unknown direction.
+
+**Cheapness ranking systematically discards the prize.** A $1,500 comic parallel
+listed as "parallel" at $200 is, against the standard-parallel median of ~$70,
+nearly **3× too expensive**. Any cheapness screen drops it. It is the listing
+worth having. Cheapness relative to the claimed variant is not a weak signal
+here — it is *anti-correlated* with the opportunity, because the mislabelled
+dear cards are the ones that look overpriced.
+
+The brief's `max(ambiguity_ev, cheapness_ev)` does not fix this. Both terms are
+computed against the claimed variant, so both miss the same listings.
+
+### The fix
+
+`valuation.py` scores every variant left live by the description, not the
+claimed one:
+
+- `blind_ev` — posterior-weighted EV across all live variants
+- `upside_ev` — EV if the dearest live variant is confirmed
+- `information_value` — expected gain from resolving the variant *before*
+  committing. This is the correct triage key, and it is highest exactly where
+  blind EV is unattractive but the upside is large.
+
+Ranking on information value puts the mislabelled dear cards first. There is a
+regression test (`test_cheapness_screen_would_discard_the_prize`) so a future
+refactor cannot quietly reintroduce cheapness-first ranking.
+
+### What this does to the go/no-go question
+
+The parameter that decides the strategy is no longer "how often is a title
+blank" but **how often is a title wrong in the profitable direction, on a card
+that then sold below its true variant's median.** `verification.py` measures
+exactly that, decomposed so the overstatement is visible:
+
+| Quantity | Meaning |
+|---|---|
+| `mislabel_rate` | title disagrees with the photo |
+| `under_claim_rate` | true variant is **dearer** than claimed — the edge |
+| `over_claimed` | true variant is cheaper — the trap that loses money |
+| **`exploitable_rate`** | under-claimed **and** sold below true median |
+
+The last row is the one that matters, and it is strictly smaller than the
+mislabel rate: a comic parallel described as "parallel" that still fetched full
+comic-parallel money was correctly priced by bidders who looked at the photo.
+Those sales inflate the mislabel rate without being tradeable.
+
+**This is measurable by hand and needs no API.** Open ~50 sold listings, look at
+each card, record what it actually is. Four tells: star above the rarity code;
+manga-panel vs full-bleed vs inside-frame art; gold/WINNER stamp or serial;
+slabbed or not. An afternoon's work produces the number the entire thesis turns
+on. `optcg-backtest verify` consumes it.
+
+### An open calibration problem this exposes
+
+Running `optcg-backtest triage` on the config's reference prices shows the
+mislabelled-comic case scoring only ~$28 of information value on a $200 ask —
+because the population prior says comic parallels are ~2% of copies, so a
+listing saying "parallel" is rarely one.
+
+That arithmetic is right and the premise is probably wrong. **Mislabelling is
+not independent of the variant.** A seller who does not know what they have is
+disproportionately likely to *both* hold an unusual card *and* write a generic
+title. The correct quantity is P(variant | title, seller mislabelled), not
+P(variant) × LR(title) using population priors.
+
+If that conditional is materially higher than the population prior, information
+value rises proportionally and the strategy looks considerably better than §2
+suggests. If it is not, the strategy is dead. **The `verify` sample measures
+this directly** — it is the same annotation exercise, and it is the strongest
+argument for doing the manual verification before concluding anything.
+
+The §5 verdict stands as a verdict on the *measured dispersion*. It is not a
+verdict on the mislabel thesis, which remains unmeasured.
+
+---
+
 ## 7. What I built anyway
 
 Stage 1 harness, complete and tested (81 tests passing) — it runs the moment a real export exists:

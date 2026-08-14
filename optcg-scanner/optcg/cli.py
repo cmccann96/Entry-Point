@@ -106,7 +106,7 @@ def cmd_feasibility(cfg: AppConfig) -> int:
 
 
 def cmd_run(cfg: AppConfig) -> int:
-    source = CsvSoldSource(cfg.sold_sales_csv, cfg.fx_rates)
+    source = _build_source(cfg)
     report = run_backtest(
         source,
         cfg.catalog,
@@ -145,6 +145,280 @@ def cmd_run(cfg: AppConfig) -> int:
     return 0 if passed else 2
 
 
+def cmd_power(cfg: AppConfig) -> int:
+    """How much data is needed to settle the question."""
+    from .power import collection_plan, required_sample_size, wilson_interval
+
+    _rule("HOW MUCH DATA SETTLES THIS")
+    print("  The verdict turns on one number: how often an undescribed listing")
+    print("  sells at a deep discount. Everything else is well determined.\n")
+
+    required = 0.204  # from VERDICT.md, left-tail fit
+    plan = collection_plan(observed_successes=1, observed_n=13, required_rate=required)
+    low, high = plan["interval"]
+    print(f"  What you have now: 1 event in 13 sales")
+    print(f"    point estimate {plan['point_estimate']:.1%}   95% CI "
+          f"[{low:.1%}, {high:.1%}]")
+    print(f"    rate needed to clear the gate: {required:.1%}")
+    decisive = (
+        "yes" if plan["currently_decisive"]
+        else "NO -- the required rate sits inside the interval"
+    )
+    print(f"    decisive? {decisive}")
+
+    _rule("Sample size required")
+    for label, n in plan["scenarios"].items():
+        print(f"  {label:<42} n = {n:,} sales")
+
+    print("\n  Interval width by sample size (assuming the 7.7% point estimate holds):")
+    print(f"  {'n':>6}  {'95% CI':>22}   verdict vs 20.4%")
+    for n in (13, 20, 30, 40, 60, 100, 200):
+        successes = round(0.077 * n)
+        lo, hi = wilson_interval(successes, n)
+        if hi < required:
+            call = "DECIDES: no-go"
+        elif lo > required:
+            call = "DECIDES: go"
+        else:
+            call = "inconclusive"
+        print(f"  {n:>6}  [{lo:>6.1%}, {hi:>6.1%}]   {call}")
+
+    _rule("Collection plan")
+    n_needed = required_sample_size(0.077, required)
+    print(f"  ~{n_needed} JUDGED UNDESCRIBED sales separate 7.7% from 20.4%.")
+    print("  That is the binding number, and it is much smaller than it sounds --")
+    print("  but note what has to be true for a sale to count toward it:")
+    print("    * its title carries no variant descriptor, AND")
+    print(f"    * at least {cfg.backtest.min_comparables} described sales of some variant")
+    print(f"      occurred in the {cfg.backtest.trailing_days} days before it")
+    print("\n  Undescribed listings are a minority of sales, so budget roughly")
+    print(f"  {n_needed * 4}-{n_needed * 6} total sales. At ~21 sales/card-year that is")
+    print("  about 8-12 cards with 1-2 years of history each -- a morning of")
+    print("  exports, not a data pipeline.")
+    print("\n  Collect, in priority order:")
+    print("    1. Sale DATE, price, currency, and the FULL untruncated title")
+    print("    2. Both descriptive and bare titles -- the described sales are the")
+    print("       benchmark, so an export of only the weird ones measures nothing")
+    print("    3. Cards with a wide variant price range; a card whose variants all")
+    print("       cost the same cannot exhibit the failure mode at all")
+    print("\n  Titles matter more than prices here. A truncated title reads as")
+    print("  'undescribed' and will inflate the failure rate you measure.")
+    print("\n  Then: uv run optcg-backtest measure")
+    return 0
+
+
+def cmd_measure(cfg: AppConfig) -> int:
+    """Direct measurement of the listing-failure rate. The actual validity test."""
+    from .power import measure_failure_rate
+
+    source = _build_source(cfg)
+    required = 0.204
+
+    _rule("LISTING-FAILURE RATE -- DIRECT MEASUREMENT")
+    print("  Reported as BOUNDS, not a point estimate. An undescribed listing")
+    print("  that sold cheap is either a correctly-priced plain printing or a")
+    print("  missed high-value variant, and the sale record cannot tell you")
+    print("  which -- that is exactly what the missing description would have")
+    print("  said. Photos settle it; nothing in the price history can.\n")
+
+    total_judged = 0
+    total_unambiguous = 0
+    total_candidates = 0
+    shortlist: list[tuple[str, float, float, str]] = []
+
+    for card_number, variants in cfg.catalog.items():
+        sales = source.fetch_sold(card_number, date(2020, 1, 1), date.today())
+        if not sales:
+            print(f"  {card_number}: no sales in export")
+            continue
+        result = measure_failure_rate(sales, variants, cfg.backtest)
+        total_judged += result.total_judged
+        total_unambiguous += result.unambiguous
+        total_candidates += result.candidates
+        shortlist.extend(result.examples)
+
+        print(f"\n  {card_number}: {len(sales)} sales, "
+              f"{result.undescribed_sales} undescribed, {result.total_judged} judged")
+        print(f"    unambiguously cheap: {result.unambiguous}   "
+              f"needs photo check: {result.candidates}")
+        print(f"    rate in [{result.lower_rate:.1%}, {result.upper_rate:.1%}]")
+
+    _rule("POOLED")
+    if total_judged == 0:
+        print("  No undescribed sales had enough comparables to judge.")
+        print("  Collect more history -- 'optcg-backtest power' sizes it.")
+        return 3
+
+    from .power import wilson_interval
+
+    low = wilson_interval(total_unambiguous, total_judged)[0]
+    high = wilson_interval(total_unambiguous + total_candidates, total_judged)[1]
+    print(f"  {total_judged} judged undescribed sales")
+    print(f"    {total_unambiguous} unambiguously cheap, {total_candidates} candidates")
+    print(f"  failure rate in [{low:.1%}, {high:.1%}]  "
+          f"(identification gap + sampling error)")
+    print(f"  required to clear the gate: {required:.1%}")
+
+    if shortlist:
+        _rule("Shortlist -- check these photos")
+        print("  Each is a listing whose variant the title did not determine.")
+        print("  Confirming or dismissing these is what narrows the bound.\n")
+        for title, price, benchmark, bucket in sorted(shortlist, key=lambda r: r[1])[:20]:
+            print(f"    [{bucket:<11}] ${price:>9,.2f} vs ${benchmark:>9,.2f}  "
+                  f"\"{title[:52]}\"")
+
+    if high < required:
+        print("\n  DECIDES: NO-GO. Even the optimistic bound is below what the")
+        print("  strategy needs. This is a real answer -- stop here.")
+        return 2
+    if low > required:
+        print("\n  DECIDES: GO. Even the pessimistic bound clears the gate.")
+        return 0
+    print("\n  INCONCLUSIVE. The required rate is inside the bound.")
+    if total_candidates:
+        print(f"  Fastest way to narrow it: check the {total_candidates} candidate "
+              "photo(s) above.")
+        print("  Each one resolved moves it out of the gap and into a count.")
+    print("  Otherwise collect more sales -- 'optcg-backtest power' sizes it.")
+    return 3
+
+
+def cmd_verify(cfg: AppConfig) -> int:
+    """Mislabel rate measured against image ground truth. The real Stage 1 test."""
+    from .ingest import load_truth_column
+    from .verification import measure_mislabel_rate, parse_verified
+
+    if not cfg.manual_files:
+        print("No input files. Put annotated exports in data/ -- see README.md.")
+        return 3
+
+    _rule("MISLABEL RATE -- MEASURED AGAINST IMAGE GROUND TRUTH")
+    print("  Requires a 'true_variant' column, filled in by looking at each")
+    print("  listing's photo. Titles alone cannot measure how often titles lie.\n")
+
+    source = _build_source(cfg)
+    truth: dict[str, str] = {}
+    for path in cfg.manual_files:
+        truth.update(load_truth_column(path, cfg.column_overrides))
+
+    if not truth:
+        print("  No 'true_variant' column found in any input file.")
+        print("\n  To produce it: open each sold listing, look at the card, and")
+        print("  record which variant it actually is. The four tells:")
+        print("    * star above the rarity code   -> parallel or above")
+        print("    * manga panels / full-bleed / inside-frame art")
+        print("    * gold stamp, WINNER stamp, or printed serial")
+        print("    * slabbed? grade and grader")
+        print("\n  50 listings by hand is enough for a first read. No API needed.")
+        return 3
+
+    total = 0
+    exploitable = 0
+    gaps: list[float] = []
+    for card_number, variants in cfg.catalog.items():
+        sales = source.fetch_sold(card_number, date(2020, 1, 1), date.today())
+        verified = parse_verified(sales, truth, variants)
+        if not verified:
+            continue
+        prices = {
+            key: price for key, price in cfg.reference_prices.items()
+            if key.startswith(card_number)
+        }
+        report = measure_mislabel_rate(verified, variants, prices)
+        total += report.total
+        exploitable += report.exploitable
+        gaps.extend(report.under_claim_gaps)
+
+        print(f"  {card_number}: {report.total} verified")
+        print(f"    mislabelled:      {report.mislabel_rate:>6.1%}")
+        print(f"    under-claimed:    {report.under_claim_rate:>6.1%}  (the edge)")
+        print(f"    over-claimed:     {report.over_claimed:>6}     (the trap)")
+        print(f"    EXPLOITABLE:      {report.exploitable_rate:>6.1%}  "
+              f"(under-claimed AND underpriced)")
+        for title, claimed, actual, gap in report.examples[:3]:
+            print(f"      +${gap:>9,.0f}  \"{title[:44]}\"")
+            print(f"                   claimed {claimed} -> actually {actual}")
+
+    _rule("POOLED")
+    if total == 0:
+        print("  No annotated sales matched the catalog.")
+        return 3
+
+    from .power import wilson_interval
+    from .stats import median as _med
+
+    low, high = wilson_interval(exploitable, total)
+    required = 0.204
+    print(f"  {exploitable} exploitable in {total} verified sales")
+    print(f"  rate {exploitable / total:.1%}   95% CI [{low:.1%}, {high:.1%}]")
+    if gaps:
+        print(f"  median value left on the table: ${_med(gaps):,.0f}")
+    print(f"  required to clear the gate: {required:.1%}")
+
+    if high < required:
+        print("\n  DECIDES: NO-GO. Sellers do not misdescribe often enough.")
+        return 2
+    if low > required:
+        print("\n  DECIDES: GO. The mislabel edge is real and large enough.")
+        return 0
+    print("\n  INCONCLUSIVE. Verify more listings -- 'optcg-backtest power' sizes it.")
+    return 3
+
+
+def cmd_triage(cfg: AppConfig) -> int:
+    """Show why ranking on cheapness discards the listings worth having."""
+    from .valuation import triage_rank, value_listing
+    from .variants import infer_variant
+
+    _rule("TRIAGE -- WHY CHEAPNESS RANKING FAILS")
+    print("  Illustrative, using the reference prices in config.toml (operator-")
+    print("  supplied, approximate). Shows ranking behaviour, not market data.\n")
+
+    for card_number, variants in cfg.catalog.items():
+        prices = {
+            key: price for key, price in cfg.reference_prices.items()
+            if key.startswith(card_number)
+        }
+        if len(prices) < 2:
+            continue
+
+        scenarios = [
+            (f"{card_number} 'parallel' @ $200", f"{card_number} Zoro parallel", 200.0),
+            (f"{card_number} 'SEC' @ $60", f"{card_number} Zoro SEC", 60.0),
+            (f"{card_number} bare title @ $150", f"One Piece {card_number}", 150.0),
+            (f"{card_number} 'comic parallel' @ $1400", f"{card_number} comic parallel red", 1400.0),
+        ]
+        valuations = []
+        for name, title, ask in scenarios:
+            posterior = infer_variant(title, variants)
+            try:
+                valuations.append((name, value_listing(posterior, prices, ask, cfg=cfg.friction)))
+            except ValueError:
+                continue
+
+        print(f"  {'listing':<36} {'blind EV':>10} {'info value':>11}  cheapness screen")
+        for name, valuation in triage_rank(valuations):
+            verdict = "DISCARDS IT" if valuation.is_hidden_by_cheapness_screen else "keeps it"
+            print(f"  {name:<36} {valuation.blind_ev_aud:>+10,.0f} "
+                  f"{valuation.information_value_aud:>+11,.0f}  {verdict}")
+        print()
+        print("  Ranked by information value -- what a photo check is worth.")
+        print("  Listings marked DISCARDS IT look expensive against the variant")
+        print("  the seller claimed, and are exactly the mislabelled dear cards.")
+    return 0
+
+
+def _build_source(cfg: AppConfig):
+    """Manual multi-file ingestion if configured, else the single CSV."""
+    if cfg.manual_files:
+        from .ingest import ManualSource
+
+        return ManualSource(
+            cfg.manual_files, cfg.fx_rates, cfg.column_overrides, cfg.default_currency
+        )
+    return CsvSoldSource(cfg.sold_sales_csv, cfg.fx_rates)
+
+
 def cmd_friction(cfg: AppConfig) -> int:
     _rule("Breakeven discount by price point")
     for price, by_channel in breakeven_table(
@@ -161,6 +435,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.toml")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("feasibility", help="analytic study from measured dispersion stats")
+    sub.add_parser("power", help="how much data is needed to settle the question")
+    sub.add_parser("measure", help="listing-failure-rate bounds from titles alone")
+    sub.add_parser("verify", help="mislabel rate vs image ground truth (the real test)")
+    sub.add_parser("triage", help="why cheapness ranking discards the good listings")
     sub.add_parser("run", help="Stage 1 backtest against a real sold-sales export")
     sub.add_parser("friction", help="breakeven discount by price point and channel")
 
@@ -169,6 +447,10 @@ def main(argv: list[str] | None = None) -> int:
 
     handlers = {
         "feasibility": cmd_feasibility,
+        "power": cmd_power,
+        "measure": cmd_measure,
+        "verify": cmd_verify,
+        "triage": cmd_triage,
         "run": cmd_run,
         "friction": cmd_friction,
     }

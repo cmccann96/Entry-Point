@@ -22,6 +22,9 @@ class AppConfig:
     dispersions: list[MeasuredDistribution]
     sold_sales_csv: Path
     reference_prices: dict[str, float]
+    manual_files: list[Path]
+    column_overrides: dict[str, str]
+    default_currency: str | None
 
 
 def _load_secrets(root: Path) -> None:
@@ -87,6 +90,22 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
     ]
 
     sources = raw.get("sources", {})
+    ingest = raw.get("ingest", {})
+
+    # Any file dropped into the manual-input directory is picked up, so adding
+    # data is "save the export into data/" with no config edit.
+    manual_files: list[Path] = []
+    manual_dir = sources.get("manual_dir")
+    if manual_dir:
+        directory = root / manual_dir
+        if directory.is_dir():
+            manual_files = sorted(
+                p for p in directory.iterdir()
+                if p.suffix.lower() in (".csv", ".tsv", ".tab", ".html", ".htm")
+                and not p.name.startswith(".")
+            )
+    manual_files += [root / p for p in sources.get("manual_files", [])]
+
     return AppConfig(
         backtest=backtest,
         friction=friction,
@@ -95,4 +114,7 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
         dispersions=dispersions,
         sold_sales_csv=root / sources.get("sold_sales_csv", "data/sold_sales.csv"),
         reference_prices=reference_prices,
+        manual_files=manual_files,
+        column_overrides=ingest.get("columns", {}),
+        default_currency=ingest.get("default_currency"),
     )

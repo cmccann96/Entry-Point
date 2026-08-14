@@ -27,9 +27,26 @@ JPY = 0.0102
 EUR = 1.65
 
 [sources]
-# Path to the operator-supplied sold-sales export. This is the only compliant
-# Stage 1 input -- see README.md "Data sources".
+# Drop any export here and it is picked up automatically -- .csv, .tsv, .html.
+# No config edit needed to add a card. If a filename contains a card number
+# (e.g. "OP06-118.csv") that card is assumed for rows with no card column,
+# which is what you get exporting one search at a time.
+manual_dir = "data"
+
+# Single-file fallback, used only when manual_dir is empty.
 sold_sales_csv = "data/sold_sales.csv"
+
+[ingest]
+# Only needed if a column cannot be auto-detected. The loader prints the headers
+# it actually found and the exact lines to paste here, rather than guessing.
+#   [ingest.columns]
+#   sold_date = "Date of sale"
+#   price     = "Avg sold price"
+#
+# Set this when your price column has a bare "$" and no currency column.
+# Leaving it unset makes an ambiguous "$" a hard error rather than a silent
+# assumption -- reading USD as AUD understates overseas sales by ~50%.
+# default_currency = "USD"
 
 # --------------------------------------------------------------------------
 # Catalog
