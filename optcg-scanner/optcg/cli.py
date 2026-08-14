@@ -324,7 +324,9 @@ def cmd_verify(cfg: AppConfig) -> int:
             key: price for key, price in cfg.reference_prices.items()
             if key.startswith(card_number)
         }
-        report = measure_mislabel_rate(verified, variants, prices)
+        report = measure_mislabel_rate(
+            verified, variants, prices, SaleChannel.OVERSEAS_TO_EBAY_AU, cfg.friction
+        )
         total += report.total
         exploitable += report.exploitable
         gaps.extend(report.under_claim_gaps)
@@ -334,10 +336,23 @@ def cmd_verify(cfg: AppConfig) -> int:
         print(f"    under-claimed:    {report.under_claim_rate:>6.1%}  (the edge)")
         print(f"    over-claimed:     {report.over_claimed:>6}     (the trap)")
         print(f"    EXPLOITABLE:      {report.exploitable_rate:>6.1%}  "
-              f"(under-claimed AND underpriced)")
-        for title, claimed, actual, gap in report.examples[:3]:
-            print(f"      +${gap:>9,.0f}  \"{title[:44]}\"")
-            print(f"                   claimed {claimed} -> actually {actual}")
+              f"(under-claimed AND clears friction)")
+
+        # Exploitability is channel-dependent: a gap too thin for an overseas
+        # round trip can still pay locally.
+        by_channel = {
+            channel: measure_mislabel_rate(
+                verified, variants, prices, channel, cfg.friction
+            ).exploitable
+            for channel in SaleChannel
+        }
+        print("    by channel:       " + "   ".join(
+            f"{_CHANNEL_LABEL[c]}: {n}" for c, n in by_channel.items()
+        ))
+
+        for title, claimed, actual, net_ev in report.examples[:3]:
+            print(f"      net +${net_ev:>9,.0f}  \"{title[:42]}\"")
+            print(f"                     claimed {claimed} -> actually {actual}")
 
     _rule("POOLED")
     if total == 0:
@@ -352,7 +367,8 @@ def cmd_verify(cfg: AppConfig) -> int:
     print(f"  {exploitable} exploitable in {total} verified sales")
     print(f"  rate {exploitable / total:.1%}   95% CI [{low:.1%}, {high:.1%}]")
     if gaps:
-        print(f"  median value left on the table: ${_med(gaps):,.0f}")
+        print(f"  median net EV per exploitable sale: ${_med(gaps):,.0f}")
+        print(f"  total that would have been banked:  ${sum(gaps):,.0f}")
     print(f"  required to clear the gate: {required:.1%}")
 
     if high < required:

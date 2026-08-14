@@ -7,6 +7,7 @@ from datetime import date
 import pytest
 
 from optcg.sources.base import SoldSale
+from optcg.friction import SaleChannel
 from optcg.variants import Channel, Region, Treatment, Variant
 from optcg.verification import VerifiedSale, measure_mislabel_rate, parse_verified
 
@@ -36,13 +37,52 @@ def _key(index):
 
 class TestMislabelDirection:
     def test_under_claimed_and_underpriced_is_exploitable(self):
-        # Comic parallel described as "parallel", sold for $200 against a
-        # $1,500 true median. This is the trade.
+        # THE TRADE: comic parallel described as "parallel", sold for $200
+        # against a $1,500 true median.
         verified = [VerifiedSale(_sale(200.0, "OP06-118 Zoro parallel"), _key(3))]
         report = measure_mislabel_rate(verified, _variants(), _prices())
         assert report.under_claimed == 1
         assert report.exploitable == 1
-        assert report.median_gap_aud == pytest.approx(1300.0)
+        # Gap is realised net EV after friction, not the raw price difference.
+        assert 900.0 < report.median_gap_aud < 1300.0
+
+    def test_thin_gap_does_not_survive_friction(self):
+        # Under-claimed AND underpriced, but only just. A ~30% round trip eats
+        # it. Counting this as an opportunity would inflate the rate that
+        # decides the whole strategy.
+        verified = [VerifiedSale(_sale(1499.0, "OP06-118 Zoro parallel"), _key(3))]
+        report = measure_mislabel_rate(verified, _variants(), _prices())
+        assert report.under_claimed == 1
+        assert report.exploitable == 0
+
+    def test_exploitability_depends_on_channel(self):
+        # A gap too thin to survive an overseas round trip can still pay
+        # locally. The same listing is or is not a trade depending on route.
+        verified = [VerifiedSale(_sale(1150.0, "OP06-118 Zoro parallel"), _key(3))]
+        overseas = measure_mislabel_rate(
+            verified, _variants(), _prices(), SaleChannel.OVERSEAS_TO_EBAY_AU
+        )
+        local = measure_mislabel_rate(
+            verified, _variants(), _prices(), SaleChannel.LOCAL_TO_LOCAL
+        )
+        assert overseas.exploitable == 0
+        assert local.exploitable == 1
+
+    def test_minimum_ev_threshold_is_enforced(self):
+        verified = [VerifiedSale(_sale(200.0, "OP06-118 Zoro parallel"), _key(3))]
+        report = measure_mislabel_rate(
+            verified, _variants(), _prices(), min_net_ev_aud=5000.0
+        )
+        assert report.exploitable == 0
+
+    def test_total_net_ev_sums_what_would_have_been_banked(self):
+        verified = [
+            VerifiedSale(_sale(200.0, "OP06-118 Zoro parallel"), _key(3)),
+            VerifiedSale(_sale(150.0, "OP06-118 parallel"), _key(3)),
+        ]
+        report = measure_mislabel_rate(verified, _variants(), _prices())
+        assert report.exploitable == 2
+        assert report.total_net_ev_aud == pytest.approx(sum(report.under_claim_gaps))
 
     def test_under_claimed_but_fully_priced_is_not_exploitable(self):
         # Bad title, but the bidders saw the photo and paid up anyway. This is

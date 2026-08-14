@@ -51,7 +51,9 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
 
     backtest = BacktestConfig(**raw.get("backtest", {}))
     friction = FrictionConfig(**raw.get("friction", {}))
-    fx_rates = {k.upper(): float(v) for k, v in raw.get("fx", {}).items()}
+    # AUD is the base currency and is always 1.0; requiring it in config would
+    # be a pointless trap, and omitting it must not make AUD rows unparseable.
+    fx_rates = {"AUD": 1.0, **{k.upper(): float(v) for k, v in raw.get("fx", {}).items()}}
 
     catalog: dict[str, list[Variant]] = {}
     reference_prices: dict[str, float] = {}

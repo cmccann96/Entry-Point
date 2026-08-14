@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .friction import FrictionConfig, SaleChannel, evaluate_trade
 from .power import wilson_interval
 from .sources.base import SoldSale
 from .stats import median as _median
@@ -47,7 +48,7 @@ class MislabelReport:
     under_claimed: int = 0  # card is dearer than the title implies -- the edge
     over_claimed: int = 0  # card is cheaper than the title implies -- the trap
     exploitable: int = 0  # under-claimed AND sold below the true variant's median
-    under_claim_gaps: list[float] = field(default_factory=list)  # AUD left on the table
+    under_claim_gaps: list[float] = field(default_factory=list)  # realised net EV, AUD
     examples: list[tuple[str, str, str, float]] = field(default_factory=list)
 
     @property
@@ -71,8 +72,13 @@ class MislabelReport:
 
     @property
     def median_gap_aud(self) -> float:
-        """Median value left on the table by an under-claimed listing."""
+        """Median net EV, in AUD, of an exploitable listing after friction."""
         return _median(self.under_claim_gaps) if self.under_claim_gaps else 0.0
+
+    @property
+    def total_net_ev_aud(self) -> float:
+        """Total that would have been banked across every exploitable sale."""
+        return sum(self.under_claim_gaps)
 
     def decides_against(self, required_rate: float) -> str:
         low, high = self.exploitable_interval
@@ -89,6 +95,9 @@ def measure_mislabel_rate(
     verified: list[VerifiedSale],
     variants: list[Variant],
     reference_prices: dict[str, float],
+    channel: SaleChannel = SaleChannel.OVERSEAS_TO_EBAY_AU,
+    cfg: FrictionConfig | None = None,
+    min_net_ev_aud: float = 0.0,
 ) -> MislabelReport:
     """Compare what titles claimed against what the images showed.
 
@@ -97,11 +106,18 @@ def measure_mislabel_rate(
     is dearer than the one its title implied.
 
     A mislabel is only counted as exploitable when the card additionally sold
-    below its true variant's median. A comic parallel described as "parallel"
-    that still fetched full comic-parallel money was correctly priced by the
-    market despite the bad title -- the bidders saw the photo. Those sales are
-    the reason the raw mislabel rate overstates the opportunity.
+    cheap enough for the trade to clear friction on ``channel``. Two separate
+    reasons the raw mislabel rate overstates the opportunity:
+
+      * a comic parallel described as "parallel" that still fetched full
+        comic-parallel money was priced correctly by bidders who saw the photo
+      * a card that sold a little under its true median still loses money once
+        a ~30% round trip is applied
+
+    ``under_claim_gaps`` therefore holds realised net EV in AUD, not raw price
+    gaps -- the number you would actually have banked.
     """
+    cfg = cfg or FrictionConfig()
     report = MislabelReport()
 
     for entry in verified:
@@ -123,9 +139,14 @@ def measure_mislabel_rate(
 
         if true_price > claimed_price:
             report.under_claimed += 1
-            if entry.sale.price_aud < true_price:
+            # "Could be sold for more" has to mean more NET OF FRICTION. A card
+            # that went at $1,499 against a $1,500 median is under-claimed and
+            # underpriced and still loses money after a ~30% round trip. Only
+            # count it when the trade actually pays.
+            trade = evaluate_trade(entry.sale.price_aud, true_price, channel, cfg)
+            if trade.net_ev_aud > min_net_ev_aud:
                 report.exploitable += 1
-                report.under_claim_gaps.append(true_price - entry.sale.price_aud)
+                report.under_claim_gaps.append(trade.net_ev_aud)
                 report.examples.append(
                     (
                         entry.sale.title,
@@ -134,7 +155,7 @@ def measure_mislabel_rate(
                             (v.describe() for v in variants if v.key == true_key),
                             true_key,
                         ),
-                        true_price - entry.sale.price_aud,
+                        trade.net_ev_aud,
                     )
                 )
         else:
@@ -150,29 +171,63 @@ def parse_verified(
 ) -> list[VerifiedSale]:
     """Attach confirmed variants to sales.
 
-    ``truth`` maps a sale title to a variant *label* or key, as recorded while
-    looking at photos. An unrecognised label raises rather than being dropped --
-    a typo silently discarding a verification would bias the measurement toward
-    whatever was easy to label.
-    """
-    by_label = {v.label: v.key for v in variants if v.label}
-    by_key = {v.key: v.key for v in variants}
+    ``truth`` maps a sale title to a variant, as recorded while looking at
+    photos. Matching is deliberately forgiving, because this column is typed by
+    hand fifty times and demanding the full label invites transcription errors:
+    a full key, a full label, a bare treatment name ("comic", "manga"), or any
+    substring that identifies exactly one variant will all resolve.
 
+    Ambiguity and typos both raise. Silently dropping an annotation would bias
+    the measurement toward whatever happened to be easy to label, and silently
+    guessing between two variants would corrupt the direction of the mislabel --
+    which is the entire quantity being measured.
+    """
     verified: list[VerifiedSale] = []
     unknown: list[str] = []
-    for sale in sales:
-        label = truth.get(sale.title)
-        if label is None:
-            continue
-        key = by_key.get(label) or by_label.get(label)
-        if key is None:
-            unknown.append(label)
-            continue
-        verified.append(VerifiedSale(sale=sale, true_variant_key=key))
+    ambiguous: list[tuple[str, list[str]]] = []
 
+    for sale in sales:
+        raw = truth.get(sale.title)
+        if raw is None:
+            continue
+        label = raw.strip()
+        if not label:
+            continue
+
+        matches = _resolve_variant(label, variants)
+        if not matches:
+            unknown.append(label)
+        elif len(matches) > 1:
+            ambiguous.append((label, [v.describe() for v in matches]))
+        else:
+            verified.append(VerifiedSale(sale=sale, true_variant_key=matches[0].key))
+
+    problems: list[str] = []
     if unknown:
+        problems.append(f"unrecognised variant label(s): {sorted(set(unknown))}")
+    for label, candidates in ambiguous:
+        problems.append(f"{label!r} matches {len(candidates)} variants: {candidates}")
+    if problems:
+        known = sorted({v.label or v.describe() for v in variants})
         raise ValueError(
-            f"unrecognised variant label(s): {sorted(set(unknown))}. "
-            f"Known labels: {sorted(by_label)}"
+            "; ".join(problems)
+            + f". Known variants: {known}"
+            + ". A bare treatment name (e.g. 'comic') works when it is unambiguous."
         )
     return verified
+
+
+def _resolve_variant(label: str, variants: list[Variant]) -> list[Variant]:
+    """Resolve an annotation to variants, most specific match first."""
+    needle = label.casefold()
+
+    for matcher in (
+        lambda v: v.key.casefold() == needle,
+        lambda v: (v.label or "").casefold() == needle,
+        lambda v: v.treatment.value.casefold() == needle,
+        lambda v: needle in (v.label or "").casefold(),
+    ):
+        matches = [v for v in variants if matcher(v)]
+        if matches:
+            return matches
+    return []
