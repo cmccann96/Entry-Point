@@ -381,6 +381,79 @@ def cmd_verify(cfg: AppConfig) -> int:
     return 3
 
 
+def cmd_title(cfg: AppConfig, title: str, ask: float | None = None) -> int:
+    """Score one listing title. No credentials, no network -- pure inference.
+
+    The quickest way to sanity-check the variant engine against a real listing
+    before spending anything on vision.
+    """
+    from .valuation import value_listing
+    from .variants import detect_features, extract_card_numbers, infer_variant
+
+    numbers = extract_card_numbers(title)
+    _rule("TITLE ANALYSIS")
+    print(f'  "{title}"\n')
+
+    if not numbers:
+        print("  No card number found. Search and keying are by card number, so")
+        print("  this listing would not be matched to a catalog entry at all.")
+        return 1
+
+    print(f"  card number(s): {', '.join(numbers)}")
+    print(f"  features fired: {sorted(detect_features(title)) or '(none)'}")
+
+    card_number = numbers[0]
+    variants = cfg.catalog.get(card_number)
+    if not variants:
+        print(f"\n  {card_number} is not in the catalog -- add it to config.toml")
+        print("  to score the variant posterior.")
+        return 1
+
+    posterior = infer_variant(title, variants)
+    _rule("Variant posterior")
+    for key, probability in sorted(
+        posterior.probabilities.items(), key=lambda kv: -kv[1]
+    ):
+        bar = "#" * round(probability * 40)
+        price = cfg.reference_prices.get(key)
+        tag = f"  (ref ${price:,.0f})" if price else ""
+        print(f"  {probability:>6.1%} {posterior.variants[key].describe():<28}{tag}")
+        print(f"         {bar}")
+
+    _rule("Signals")
+    print(f"  ambiguity (posterior entropy):   {posterior.ambiguity:.2f}")
+    print(f"  information gain (KL vs prior):  {posterior.information_gain:.2f}", end="")
+    print("   <- 0.00 means the title told us nothing"
+          if posterior.information_gain < 0.01 else "")
+    print(f"  undescribed (no variant tell):   {posterior.is_undescribed}")
+    if cfg.reference_prices:
+        dispersion = posterior.price_dispersion(cfg.reference_prices)
+        print(f"  live price dispersion:           {dispersion:.1f}x")
+        if dispersion > 5:
+            print("    -> The title leaves variants spanning a wide price range live.")
+            print("       This is a photo-check candidate: what it is worth depends")
+            print("       on which variant it turns out to be.")
+
+    if ask is not None and cfg.reference_prices:
+        _rule(f"Valuation at ask ${ask:,.0f}")
+        for channel in SaleChannel:
+            try:
+                valuation = value_listing(
+                    posterior, cfg.reference_prices, ask, channel, cfg.friction
+                )
+            except ValueError:
+                print("  No live variant has a reference price -- cannot value.")
+                break
+            print(f"  {_CHANNEL_LABEL[channel]:<22} blind EV {valuation.blind_ev_aud:>+9,.0f}"
+                  f"   info value {valuation.information_value_aud:>+8,.0f}"
+                  f"{'   <- cheapness screen DISCARDS' if valuation.is_hidden_by_cheapness_screen else ''}")
+        print(f"\n  best case if photo confirms {valuation.best_variant_label}:"
+              f" {valuation.upside_ev_aud:+,.0f}")
+        print(f"  worst case if it is {valuation.worst_variant_label}:"
+              f" {valuation.downside_ev_aud:+,.0f}")
+    return 0
+
+
 def cmd_scan(cfg: AppConfig) -> int:
     """Scan LIVE eBay listings, photo-check the top ones, log to the journal.
 
@@ -565,6 +638,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("triage", help="why cheapness ranking discards the good listings")
     sub.add_parser("scan", help="scan LIVE eBay listings + photo-check (the real test)")
     sub.add_parser("resolve", help="list flagged listings awaiting an outcome")
+    title_p = sub.add_parser("title", help="score one listing title (no credentials needed)")
+    title_p.add_argument("text", help="the listing title, quoted")
+    title_p.add_argument("--ask", type=float, help="ask price in AUD, to value it")
     sub.add_parser("run", help="Stage 1 backtest against a real sold-sales export")
     sub.add_parser("friction", help="breakeven discount by price point and channel")
 
@@ -583,6 +659,8 @@ def main(argv: list[str] | None = None) -> int:
         "friction": cmd_friction,
     }
     try:
+        if args.command == "title":
+            return cmd_title(cfg, args.text, args.ask)
         return handlers[args.command](cfg)
     except DataUnavailable as exc:
         print(f"\nDATA UNAVAILABLE\n{exc}\n", file=sys.stderr)
