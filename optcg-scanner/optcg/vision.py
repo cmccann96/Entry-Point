@@ -45,17 +45,28 @@ one number can span a 50x price range. Read each axis separately.
 BASE RARITY: the letter code printed by the collector number. One of C, UC, R, \
 L (Leader), SR, or SEC (Secret Rare). Report exactly what is printed.
 
-TREATMENT: a star above the rarity code marks a parallel. Look specifically at \
-the space directly above the printed rarity letters. Tiers, ascending:
-  - base: no star. Standard printing.
-  - parallel: star present, artwork is the same painted art as the base card \
-but with foiling/texture applied.
-  - sp (Special Rare): star present, alternate painted artwork, typically \
-full-bleed with no frame.
-  - manga: black-and-white manga panel artwork taken from Oda's original \
-pages. Unmistakable -- line art and screentone, not painting.
-  - comic: comic/red parallel. Heavily stylised colour treatment, usually red \
-dominant, distinct from both painted and manga art.
+TREATMENT: **the star above the rarity code is the decisive signal, not the \
+art style.** Look specifically at the space directly above the printed rarity \
+letters. If there is no star, the treatment is `base` -- whatever the artwork \
+looks like. Report `null` rather than guessing when the bottom-right corner is \
+too small, blurred, or cropped to see whether a star is present.
+
+Tiers, ascending (all of these require a star):
+  - parallel: same painted art as the base card, with foiling/texture applied.
+  - sp (Special Rare): alternate painted artwork, typically full-bleed, no frame.
+  - manga: black-and-white manga panel artwork from Oda's original pages.
+  - comic: comic/red parallel. Heavily stylised colour, usually red dominant.
+
+**Art style alone does NOT determine treatment, and this is the most common \
+way to get this wrong.** Manga-panel artwork is the ORDINARY base artwork for \
+many cards -- EVENT cards especially, which frequently print manga panels with \
+speech bubbles as their standard art. Such a card is a common worth a few \
+dollars, not a manga rare worth four figures. Classifying it as `manga` on art \
+style alone produces exactly the error this task exists to prevent, in the \
+expensive direction. If the card says EVENT above its name and shows manga \
+panels, that is almost certainly base art: check for the star before calling \
+it anything else.
+
 Base rarity and treatment are INDEPENDENT. A comic parallel of a SEC card is \
 still a SEC. A card can legitimately be both.
 
@@ -86,10 +97,25 @@ class CardRead(BaseModel):
     )
     art_style: str | None = Field(
         None,
-        description="One of: painted_framed, painted_fullbleed, manga_panels, comic_stylised.",
+        description=(
+            "Observed artwork only, independent of tier: painted_framed, "
+            "painted_fullbleed, manga_panels, comic_stylised."
+        ),
+    )
+    card_type: str | None = Field(
+        None,
+        description=(
+            "Printed type above the card name: CHARACTER, EVENT, STAGE, LEADER. "
+            "EVENT cards routinely use manga-panel base art -- recording this "
+            "makes the commonest false positive auditable after the fact."
+        ),
     )
     treatment: str | None = Field(
-        None, description="One of: base, parallel, sp, manga, comic. Null if undeterminable."
+        None,
+        description=(
+            "One of: base, parallel, sp, manga, comic. Driven by the star above "
+            "the rarity code, NOT by art style. Null if the corner is unreadable."
+        ),
     )
     has_gold_stamp: bool = Field(False, description="Gold stamp visible.")
     has_winner_stamp: bool = Field(False, description="WINNER stamp visible.")
