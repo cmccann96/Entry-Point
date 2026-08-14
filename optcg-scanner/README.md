@@ -25,9 +25,38 @@ Commands needing data exit `3` with a remediation message until you supply it. T
 
 ## The one measurement that decides this
 
-**The edge is sellers writing the *wrong* thing, not writing nothing.** Titles cannot measure how often titles lie — only images can. So the decisive number is: *how often is a title wrong in the profitable direction, on a card that then sold below its true variant's median?*
+**The edge is sellers writing the *wrong* thing, not writing nothing.** Titles cannot measure how often titles lie — only images can. So the decisive number is: *how often is a title wrong in the profitable direction?*
 
-You can measure it by hand in an afternoon, with no API:
+### Fastest path: scan live listings (`optcg-backtest scan`)
+
+The historical sold-data problem was a problem for *backtesting*. It is not a problem here:
+
+- the **eBay Browse API** returns **active** listings freely — no login wall, no restricted-data gate, free tier, fully within the project's constraints
+- active listings carry titles **and image URLs** — everything the mislabel measurement needs
+- a mislabelled active listing is not a data point, it's a **trade**
+
+So the measurement and the strategy are the same activity. `scan` fetches live listings, scores them, photo-checks the top ones by **information value** (never cheapness — that discards the mislabelled dear cards), and reports the measured mislabel rate with a confidence interval alongside any live opportunities clearing friction.
+
+Needs `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` (free keyset at developer.ebay.com) and `ANTHROPIC_API_KEY`. Vision results cache by image URL, so re-scanning the same watchlist costs nothing after the first pass.
+
+### The forward test
+
+`scan` logs every flagged listing to a journal. Revisit later and record what happened:
+
+```python
+from optcg.journal import Journal
+j = Journal("data/journal.db")
+j.resolve("<listing_id>", "sold", 1450.0)   # or "unsold" / "delisted"
+```
+
+`optcg-backtest resolve` lists what's awaiting an outcome. This measures two things nothing else in the project can:
+
+- **read accuracy** — photo said "comic parallel", did it sell at comic-parallel money?
+- **competition** — a deep-tail listing that vanishes in 90 seconds isn't capturable on a poll-based scanner however correctly you spotted it. Time-to-sale decides whether *latency*, not detection, is the binding constraint.
+
+### Manual alternative (no API keys)
+
+Measure the same thing by hand in an afternoon:
 
 1. Open ~50 sold listings for cards with a wide variant price range.
 2. Look at each card and record what it **actually** is. Four tells:

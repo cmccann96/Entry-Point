@@ -128,3 +128,10 @@ cv = 0.108
 n = 29
 window_months = 7.5
 graded = true
+
+[scan]
+# Live-scan settings. The eBay Browse API returns ACTIVE listings only -- which
+# is all the mislabel measurement needs, and is free and compliant.
+vision_budget = 20            # listings photo-checked per pass, ranked by information value
+vision_cache = "data/vision.db"   # cached by image URL; re-scans are free
+journal = "data/journal.db"       # forward test: flagged listings and their outcomes

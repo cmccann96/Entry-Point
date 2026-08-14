@@ -25,6 +25,9 @@ class AppConfig:
     manual_files: list[Path]
     column_overrides: dict[str, str]
     default_currency: str | None
+    vision_cache_path: Path
+    journal_path: Path
+    vision_budget: int
 
 
 def _load_secrets(root: Path) -> None:
@@ -93,6 +96,7 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
 
     sources = raw.get("sources", {})
     ingest = raw.get("ingest", {})
+    scan_cfg = raw.get("scan", {})
 
     # Any file dropped into the manual-input directory is picked up, so adding
     # data is "save the export into data/" with no config edit.
@@ -119,4 +123,7 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
         manual_files=manual_files,
         column_overrides=ingest.get("columns", {}),
         default_currency=ingest.get("default_currency"),
+        vision_cache_path=root / scan_cfg.get("vision_cache", "data/vision.db"),
+        journal_path=root / scan_cfg.get("journal", "data/journal.db"),
+        vision_budget=int(scan_cfg.get("vision_budget", 20)),
     )

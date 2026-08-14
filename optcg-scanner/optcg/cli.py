@@ -381,6 +381,114 @@ def cmd_verify(cfg: AppConfig) -> int:
     return 3
 
 
+def cmd_scan(cfg: AppConfig) -> int:
+    """Scan LIVE eBay listings, photo-check the top ones, log to the journal.
+
+    This is the real test: measures the mislabel rate on actual listings and
+    surfaces live trades at the same time.
+    """
+    import os
+
+    from .journal import Journal
+    from .scan import run_scan
+    from .sources.ebay_browse import EbayBrowseSource
+    from .vision import VisionCache, VisionReader
+
+    if not cfg.reference_prices:
+        print("No reference_price_aud values in config.toml. Nothing to value against.")
+        return 3
+
+    source = EbayBrowseSource(
+        os.environ.get("EBAY_CLIENT_ID"),
+        os.environ.get("EBAY_CLIENT_SECRET"),
+        os.environ.get("EBAY_MARKETPLACE_ID", "EBAY_AU"),
+    )
+    cache = VisionCache(cfg.vision_cache_path)
+    reader = VisionReader(cache)
+    journal = Journal(cfg.journal_path)
+
+    _rule("LIVE SCAN")
+    print("  Active listings via the eBay Browse API (free, no login wall).")
+    print("  Photo-checking the top listings by information value -- never by")
+    print("  cheapness, which discards the mislabelled dear cards.\n")
+
+    report = run_scan(
+        source,
+        cfg.catalog,
+        cfg.reference_prices,
+        reader,
+        SaleChannel.OVERSEAS_TO_EBAY_AU,
+        cfg.friction,
+        cfg.vision_budget,
+    )
+
+    _rule("MISLABEL RATE (measured on real listings)")
+    low, high = report.mislabel_interval
+    print(f"  scanned:        {len(report.scanned)}")
+    print(f"  photo-verified: {report.verified}")
+    print(f"  mislabelled:    {report.mislabelled}")
+    print(f"  unreadable:     {report.undeterminable}  (counted as neither)")
+    if report.verified:
+        print(f"  rate {report.mislabel_rate:.1%}   95% CI [{low:.1%}, {high:.1%}]")
+    print(f"  verdict vs 20.4%: {report.decides_against(0.204)}")
+
+    _rule("LIVE OPPORTUNITIES")
+    found = report.opportunities(
+        cfg.catalog, cfg.reference_prices, SaleChannel.OVERSEAS_TO_EBAY_AU, cfg.friction
+    )
+    if not found:
+        print("  None clearing friction this pass.")
+    for item, ev in found[:10]:
+        print(f"\n  +${ev:>9,.0f} net   ask ${item.listing.ask_aud:,.0f}")
+        print(f"    title claims:  {item.title_claim}")
+        print(f"    photo shows:   {item.verified_treatment}")
+        print(f"    \"{item.listing.title[:64]}\"")
+        print(f"    {item.listing.url}")
+        journal.record(
+            listing_id=item.listing.listing_id,
+            card_number=item.listing.card_number,
+            title=item.listing.title,
+            url=item.listing.url,
+            ask_aud=item.listing.ask_aud,
+            title_claim=item.title_claim,
+            vision_treatment=item.verified_treatment,
+            vision_confidence=item.vision.read.confidence if item.vision else None,
+            modelled_ev_aud=ev,
+        )
+
+    _rule("FORWARD TEST")
+    for key, value in journal.summary().items():
+        print(f"  {key}: {value}")
+    print("\n  Resolve open entries once they sell: optcg-backtest resolve")
+    journal.close()
+    cache.close()
+    return 0
+
+
+def cmd_resolve(cfg: AppConfig) -> int:
+    """Show flagged listings awaiting an outcome."""
+    from .journal import Journal
+
+    journal = Journal(cfg.journal_path)
+    entries = journal.open_entries()
+
+    _rule("OPEN FORWARD-TEST ENTRIES")
+    if not entries:
+        print("  Nothing awaiting resolution.")
+    for entry in entries:
+        print(f"\n  [{entry.listing_id}] {entry.days_open}d open  "
+              f"ask ${entry.ask_aud:,.0f}  modelled +${entry.modelled_ev_aud or 0:,.0f}")
+        print(f"    claimed {entry.title_claim} -> photo said {entry.vision_treatment}")
+        print(f"    {entry.url}")
+
+    print("\n  Record outcomes in Python:")
+    print("    from optcg.journal import Journal")
+    print(f"    j = Journal({str(cfg.journal_path)!r})")
+    print("    j.resolve('<listing_id>', 'sold', 1450.0)   # or 'unsold' / 'delisted'")
+    journal.close()
+    return 0
+
+
 def cmd_triage(cfg: AppConfig) -> int:
     """Show why ranking on cheapness discards the listings worth having."""
     from .valuation import triage_rank, value_listing
@@ -455,6 +563,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("measure", help="listing-failure-rate bounds from titles alone")
     sub.add_parser("verify", help="mislabel rate vs image ground truth (the real test)")
     sub.add_parser("triage", help="why cheapness ranking discards the good listings")
+    sub.add_parser("scan", help="scan LIVE eBay listings + photo-check (the real test)")
+    sub.add_parser("resolve", help="list flagged listings awaiting an outcome")
     sub.add_parser("run", help="Stage 1 backtest against a real sold-sales export")
     sub.add_parser("friction", help="breakeven discount by price point and channel")
 
@@ -467,6 +577,8 @@ def main(argv: list[str] | None = None) -> int:
         "measure": cmd_measure,
         "verify": cmd_verify,
         "triage": cmd_triage,
+        "scan": cmd_scan,
+        "resolve": cmd_resolve,
         "run": cmd_run,
         "friction": cmd_friction,
     }
