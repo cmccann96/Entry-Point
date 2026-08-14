@@ -123,14 +123,57 @@ class ScanReport:
         channel: SaleChannel,
         cfg: FrictionConfig,
         min_ev: float = 0.0,
+        include_auctions: bool = False,
     ) -> list[tuple[ScannedListing, float]]:
-        """Live listings whose photo-verified value clears friction."""
+        """Live listings whose photo-verified value clears friction, and which
+        can actually be bought at the ask.
+
+        **Auctions are excluded by default, and that is not a preference.** An
+        auction's current bid is not a price -- it is a partial state of an
+        ongoing price discovery that every other interested buyer can also see.
+        Valuing one off its current bid marks every freshly-opened auction as a
+        huge bargain and would swamp the output with listings that will close at
+        fair value. ``auction_watchlist`` handles those separately, where the
+        mechanics are different (bid at the close; latency is irrelevant).
+        """
         found: list[tuple[ScannedListing, float]] = []
         for item in self.scanned:
+            if not include_auctions and not item.listing.is_immediately_buyable:
+                continue
             candidates = catalog.get(item.listing.card_number, [])
             ev = item.realised_ev(candidates, reference_prices, channel, cfg)
             if ev is not None and ev > min_ev:
                 found.append((item, ev))
+        return sorted(found, key=lambda pair: pair[1], reverse=True)
+
+    def auction_watchlist(
+        self,
+        catalog: dict[str, list[Variant]],
+        reference_prices: dict[str, float],
+    ) -> list[tuple[ScannedListing, float]]:
+        """Auctions whose photo shows a variant dearer than the title claims.
+
+        Returned with the TRUE VARIANT'S REFERENCE VALUE, not an EV -- because
+        what you would pay is unknown until the auction closes. This is a
+        maximum-bid ceiling to work back from, not a profit figure.
+
+        Worth far less than the fixed-price list, and for a structural reason:
+        an auction runs for days, so every interested party has time to see the
+        same photo you did. A mislabelled auction does not stay cheap, it gets
+        found -- unless the title is bad enough that the listing never surfaces
+        in searches at all, which is the separate listing-failure mode.
+        """
+        found: list[tuple[ScannedListing, float]] = []
+        for item in self.scanned:
+            if not item.listing.is_auction:
+                continue
+            variant = item.true_variant(catalog.get(item.listing.card_number, []))
+            if variant is None:
+                continue
+            value = reference_prices.get(variant.key)
+            if value is None or item.is_mislabelled is not True:
+                continue
+            found.append((item, value))
         return sorted(found, key=lambda pair: pair[1], reverse=True)
 
     def decides_against(self, required_rate: float) -> str:

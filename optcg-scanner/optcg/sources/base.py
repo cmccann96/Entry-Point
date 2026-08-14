@@ -64,7 +64,14 @@ class SoldSale:
 
 @dataclass(frozen=True)
 class ActiveListing:
-    """One live ask. Used by Stage 2 only."""
+    """One live ask.
+
+    ``buying_options`` decides whether a mispricing is actually capturable, so
+    it is not optional metadata. A fixed-price listing can be taken at the ask
+    the moment you find it. An auction cannot: its current bid is not a price,
+    it is a partial state of an ongoing price discovery that every other
+    interested buyer is also watching.
+    """
 
     listing_id: str
     card_number: str
@@ -74,6 +81,43 @@ class ActiveListing:
     seller_country: str | None = None
     image_urls: tuple[str, ...] = ()
     source: str = "unknown"
+    # Raw values from the marketplace, upper-cased. eBay uses FIXED_PRICE,
+    # AUCTION, BEST_OFFER, CLASSIFIED_AD; unknown values are preserved rather
+    # than dropped so an enum change degrades visibly instead of silently.
+    buying_options: tuple[str, ...] = ()
+    bid_count: int | None = None
+
+    @property
+    def is_fixed_price(self) -> bool:
+        return "FIXED_PRICE" in self.buying_options
+
+    @property
+    def is_auction(self) -> bool:
+        return "AUCTION" in self.buying_options
+
+    @property
+    def accepts_best_offer(self) -> bool:
+        """True when the ask is a ceiling rather than the price."""
+        return "BEST_OFFER" in self.buying_options
+
+    @property
+    def is_immediately_buyable(self) -> bool:
+        """Can this be taken right now, at the stated ask?
+
+        An auction that also carries a fixed-price option still qualifies --
+        until someone bids, at which point eBay withdraws the buy-now option.
+        A non-zero bid count therefore disqualifies it.
+        """
+        if not self.buying_options:
+            return False  # unknown format: do not assume it is takeable
+        if self.is_auction and (self.bid_count or 0) > 0:
+            return False
+        return self.is_fixed_price
+
+    @property
+    def price_is_firm(self) -> bool:
+        """False when the real cost is unknown from the ask alone."""
+        return self.is_immediately_buyable and not self.accepts_best_offer
 
 
 @runtime_checkable

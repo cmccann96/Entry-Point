@@ -31,7 +31,9 @@ def _prices():
     return {v.key: p for v, p in zip(_variants(), [25.0, 70.0, 1098.0, 1500.0])}
 
 
-def _listing(listing_id, title, ask, images=("https://img/1.jpg",)):
+def _listing(listing_id, title, ask, images=("https://img/1.jpg",), options=("FIXED_PRICE",)):
+    # Buying format is specified because an unknown format is deliberately not
+    # treated as takeable -- see tests/test_buying_format.py.
     return ActiveListing(
         listing_id=listing_id,
         card_number=CARD,
@@ -39,6 +41,7 @@ def _listing(listing_id, title, ask, images=("https://img/1.jpg",)):
         ask_aud=ask,
         url=f"https://ebay/{listing_id}",
         image_urls=images,
+        buying_options=options,
     )
 
 

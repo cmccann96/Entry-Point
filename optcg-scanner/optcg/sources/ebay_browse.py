@@ -127,6 +127,15 @@ class EbayBrowseSource:
                 for img in ([item.get("image")] + (item.get("additionalImages") or []))
                 if img and img.get("imageUrl")
             )
+            # Preserve unrecognised buying options rather than mapping them to a
+            # known set -- an unfamiliar value should make a listing look
+            # un-takeable, not silently look like a fixed price.
+            options = tuple(
+                str(opt).strip().upper()
+                for opt in (item.get("buyingOptions") or [])
+                if str(opt).strip()
+            )
+            bid_count = item.get("bidCount")
             listings.append(
                 ActiveListing(
                     listing_id=item.get("itemId", ""),
@@ -137,6 +146,8 @@ class EbayBrowseSource:
                     seller_country=(item.get("itemLocation") or {}).get("country"),
                     image_urls=images,
                     source=self.name,
+                    buying_options=options,
+                    bid_count=int(bid_count) if bid_count is not None else None,
                 )
             )
         return listings
