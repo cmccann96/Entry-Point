@@ -1,0 +1,27 @@
+[project]
+name = "optcg-scanner"
+version = "0.1.0"
+description = "Variant-mispricing research harness for One Piece TCG cards (Stage 1: backtest gate)"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+optcg-backtest = "optcg.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["optcg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

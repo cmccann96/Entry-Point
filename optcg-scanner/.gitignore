@@ -1,0 +1,8 @@
+.env
+*.db
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+data/*.csv
+!data/README.md

@@ -1,0 +1,113 @@
+# OPTCG variant mispricing scanner -- configuration
+#
+# Money is AUD throughout.
+
+[backtest]
+trailing_days = 30
+discount_threshold = 0.30   # a sale must be this far below trailing median
+min_comparables = 5         # fewer prior sales than this and the sale is not judged
+exclude_graded = true       # graded CV 10.8% vs raw 31.1% -- the slab kills the edge
+gate_events_per_card_year = 5.0
+gate_net_edge = 0.30
+
+[friction]
+inbound_postage_aud = 12.0
+outbound_postage_aud = 12.0
+import_gst_rate = 0.10
+customs_threshold_aud = 1000.0
+customs_clearance_aud = 70.0   # formal clearance runs A$50-90; midpoint
+ebay_au_fee_rate = 0.13
+local_fee_rate = 0.0
+
+[fx]
+# AUD per unit of foreign currency. REQUIRED for any currency appearing in the
+# sold-sales export. A missing rate is a hard error, never a silent 1.0.
+USD = 1.52
+JPY = 0.0102
+EUR = 1.65
+
+[sources]
+# Path to the operator-supplied sold-sales export. This is the only compliant
+# Stage 1 input -- see README.md "Data sources".
+sold_sales_csv = "data/sold_sales.csv"
+
+# --------------------------------------------------------------------------
+# Catalog
+# --------------------------------------------------------------------------
+# Card numbers to analyse, with their known printings.
+#
+# prior_weight is a RELATIVE POPULATION estimate (higher = more copies in
+# circulation), supplied by the operator from print-run knowledge. It is not a
+# price and is not inferred from market data. The defaults below are unvalidated
+# placeholders: they encode only the ordering "plain printings are commoner than
+# parallels, which are commoner than comic parallels". Calibrate them before
+# trusting any posterior.
+#
+# The brief calls for 20 card numbers with high max/min variant ratios. Only the
+# worked example is populated here, because the remaining 19 must be chosen from
+# real variant-ratio data rather than guessed.
+
+[[catalog.cards]]
+card_number = "OP06-118"
+note = "Roronoa Zoro. Operator's dispersion-study exemplar."
+
+  [[catalog.cards.variants]]
+  base_rarity = "SEC"
+  treatment = "base"
+  channel = "booster"
+  region = "JP"
+  prior_weight = 100.0
+  label = "OP06-118 SEC (plain)"
+  reference_price_aud = 25.0   # operator-supplied, approximate
+
+  [[catalog.cards.variants]]
+  base_rarity = "SEC"
+  treatment = "parallel"
+  channel = "booster"
+  region = "JP"
+  prior_weight = 30.0
+  label = "OP06-118 SEC parallel"
+  reference_price_aud = 70.0   # operator-supplied, approximate
+
+  [[catalog.cards.variants]]
+  base_rarity = "SEC"
+  treatment = "manga"
+  channel = "booster"
+  region = "JP"
+  prior_weight = 8.0
+  label = "OP06-118 manga rare"
+  reference_price_aud = 1098.0  # operator's measured raw median
+
+  [[catalog.cards.variants]]
+  base_rarity = "SEC"
+  treatment = "comic"
+  channel = "booster"
+  region = "JP"
+  prior_weight = 2.0
+  label = "OP06-118 comic parallel"
+  reference_price_aud = 1500.0  # operator-supplied, approximate
+
+# --------------------------------------------------------------------------
+# Measured dispersion study -- inputs to the analytic feasibility check.
+# These are the operator's own measurements, not model output.
+# --------------------------------------------------------------------------
+
+[[dispersion]]
+label = "OP06-118 raw/ungraded, 2026 YTD"
+median = 1098.0
+q1 = 960.0
+q3 = 1475.0
+cv = 0.311
+n = 13
+window_months = 7.5
+graded = false
+
+[[dispersion]]
+label = "OP06-118 PSA 10, 2026 YTD"
+median = 3000.0
+q1 = 2800.0
+q3 = 3299.0
+cv = 0.108
+n = 29
+window_months = 7.5
+graded = true
