@@ -189,3 +189,68 @@ class TestScanReport:
         listings = [_listing("1", "OP06-118 Zoro", 100.0)]
         report = run_scan(self._source(listings), {CARD: _variants()}, {})
         assert report.scanned == []
+
+
+class TestPriceFreeTriage:
+    """Scanning before a price corpus exists.
+
+    Triage needs breadth and tolerates coarse numbers; valuation needs accuracy
+    on a handful. Only the first has to be automated, so a scan must be able to
+    run on a per-card variant spread alone.
+    """
+
+    def _source(self, listings):
+        return type("S", (), {"fetch_active": lambda self, card: listings})()
+
+    def test_scan_runs_with_no_reference_prices(self):
+        listings = [_listing("1", "One Piece OP06-118 Zoro", 200.0)]
+        report = run_scan(
+            self._source(listings),
+            {CARD: _variants()},
+            {},
+            _FakeReader("comic"),
+            variant_spreads={CARD: 60.0},
+        )
+        assert len(report.scanned) == 1
+        assert report.verified == 1
+        assert report.mislabelled == 1
+
+    def test_nothing_scans_without_prices_or_spread(self):
+        listings = [_listing("1", "One Piece OP06-118 Zoro", 200.0)]
+        report = run_scan(self._source(listings), {CARD: _variants()}, {})
+        assert report.scanned == []
+
+    def test_wide_spread_outranks_narrow_on_the_same_title(self):
+        listings = [_listing("1", "One Piece OP06-118 Zoro", 200.0)]
+        wide = run_scan(
+            self._source(listings), {CARD: _variants()}, {}, variant_spreads={CARD: 60.0}
+        ).scanned[0]
+        narrow = run_scan(
+            self._source(listings), {CARD: _variants()}, {}, variant_spreads={CARD: 1.5}
+        ).scanned[0]
+        assert wide.triage_score > narrow.triage_score
+
+    def test_flat_spread_card_scores_zero_however_vague(self):
+        # Resolving the variant cannot change the value, so no photo is worth it.
+        listings = [_listing("1", "One Piece OP06-118", 200.0)]
+        item = run_scan(
+            self._source(listings), {CARD: _variants()}, {}, variant_spreads={CARD: 1.0}
+        ).scanned[0]
+        assert item.triage_score == 0.0
+
+    def test_uninformative_title_outranks_a_precise_one(self):
+        source = self._source([
+            _listing("bare", "One Piece OP06-118 Zoro", 200.0),
+            _listing("exact", "OP06-118 Zoro comic parallel red", 200.0),
+        ])
+        report = run_scan(source, {CARD: _variants()}, {}, variant_spreads={CARD: 60.0})
+        by_id = {i.listing.listing_id: i for i in report.scanned}
+        assert by_id["bare"].triage_score > by_id["exact"].triage_score
+
+    def test_priced_listings_still_rank_on_information_value(self):
+        listings = [_listing("1", "OP06-118 Zoro parallel", 200.0)]
+        item = run_scan(
+            self._source(listings), {CARD: _variants()}, _prices(), variant_spreads={CARD: 60.0}
+        ).scanned[0]
+        assert item.valuation is not None
+        assert item.triage_score == item.valuation.information_value_aud

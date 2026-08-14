@@ -35,11 +35,34 @@ class ScannedListing:
     """One live listing, after title inference and (optionally) a photo check."""
 
     listing: ActiveListing
-    valuation: ListingValuation
+    valuation: ListingValuation | None
     claimed_variant: Variant
     ambiguity: float
     information_gain: float
     vision: VisionResult | None = None
+    # Max/min variant price ratio for this card number. A coarse, one-off,
+    # non-staling property that makes triage possible without a price corpus.
+    variant_spread: float | None = None
+
+    @property
+    def triage_score(self) -> float:
+        """What a photo check is worth, when there are no reference prices.
+
+        Combines how much the title left undetermined with how much that
+        ambiguity could be worth on this card. A wide-spread card whose title
+        says nothing scores highest; a narrow-spread card scores near zero
+        however vague its title, because resolving it cannot change much.
+        """
+        if self.valuation is not None:
+            return self.valuation.information_value_aud
+        spread = self.variant_spread or 1.0
+        if spread <= 1.0:
+            return 0.0
+        # log spread: a 50x card matters far more than a 5x one, but not 10x more.
+        import math
+
+        undetermined = max(self.ambiguity, 1.0 - self.information_gain)
+        return undetermined * math.log10(spread)
 
     @property
     def title_claim(self) -> str:
@@ -196,12 +219,23 @@ def scan_card(
     channel: SaleChannel = SaleChannel.OVERSEAS_TO_EBAY_AU,
     cfg: FrictionConfig | None = None,
     vision_budget: int = 20,
+    variant_spread: float | None = None,
 ) -> list[ScannedListing]:
     """Score live listings, then photo-check the ones worth checking.
 
     Triage is on information value, never cheapness -- a mislabelled dear card
     looks expensive against the variant its title claims, so a cheapness screen
     would spend the vision budget on everything except the listings that matter.
+
+    **Reference prices are optional.** Triage needs breadth across every listing
+    but tolerates coarse numbers; final valuation needs accuracy but applies to
+    a handful per week. Those are opposite requirements, and only the first has
+    to be automated. Without prices, pass ``variant_spread`` -- the card
+    number's max/min variant price ratio -- and listings are ranked on
+    ambiguity weighted by how much that ambiguity could be worth. Deciding what
+    a flagged card is actually worth is then a manual lookup at decision time,
+    which is both more current than any cached corpus and a check worth
+    performing by hand before committing money.
     """
     cfg = cfg or FrictionConfig()
     scanned: list[ScannedListing] = []
@@ -212,13 +246,20 @@ def scan_card(
             # Graded CV is 10.8% vs 31.1% raw -- the slab removes the ambiguity
             # that creates the edge. Skip, don't spend vision budget.
             continue
-        try:
-            valuation = value_listing(
-                posterior, reference_prices, listing.ask_aud, channel, cfg
-            )
-        except ValueError:
-            # No live variant has a reference price. Skip rather than invent one.
+
+        valuation = None
+        if reference_prices:
+            try:
+                valuation = value_listing(
+                    posterior, reference_prices, listing.ask_aud, channel, cfg
+                )
+            except ValueError:
+                valuation = None  # fall through to spread-based triage
+        if valuation is None and variant_spread is None:
+            # Neither prices nor a spread hint: nothing to rank on. Skip rather
+            # than surface an unranked listing that would dilute the budget.
             continue
+
         scanned.append(
             ScannedListing(
                 listing=listing,
@@ -226,16 +267,22 @@ def scan_card(
                 claimed_variant=posterior.most_likely,
                 ambiguity=posterior.ambiguity,
                 information_gain=posterior.information_gain,
+                variant_spread=variant_spread,
             )
         )
 
     if reader is None:
         return scanned
 
-    ranked = triage_rank(
-        [(item.listing.listing_id, item.valuation) for item in scanned], limit=vision_budget
-    )
-    priority = {listing_id for listing_id, _ in ranked}
+    priced = [(i.listing.listing_id, i.valuation) for i in scanned if i.valuation]
+    if priced:
+        ranked = triage_rank(priced, limit=vision_budget)
+        priority = {listing_id for listing_id, _ in ranked}
+    else:
+        # Price-free triage: rank on how much is still undetermined, scaled by
+        # how much the undetermined part could be worth on this card number.
+        ordered = sorted(scanned, key=lambda i: -i.triage_score)
+        priority = {i.listing.listing_id for i in ordered[:vision_budget]}
     by_id = {item.listing.listing_id: item for item in scanned}
 
     for listing_id in priority:
@@ -255,9 +302,11 @@ def run_scan(
     channel: SaleChannel = SaleChannel.OVERSEAS_TO_EBAY_AU,
     cfg: FrictionConfig | None = None,
     vision_budget: int = 20,
+    variant_spreads: dict[str, float] | None = None,
 ) -> ScanReport:
     """Scan every card number in the catalog."""
     report = ScanReport()
+    variant_spreads = variant_spreads or {}
 
     for card_number, variants in catalog.items():
         prices = {
@@ -265,7 +314,8 @@ def run_scan(
             for key, price in reference_prices.items()
             if key.startswith(card_number)
         }
-        if not prices:
+        spread = variant_spreads.get(card_number)
+        if not prices and spread is None:
             continue
 
         scanned = scan_card(
@@ -277,6 +327,7 @@ def run_scan(
             channel,
             cfg,
             vision_budget,
+            spread,
         )
         report.scanned.extend(scanned)
 
