@@ -453,6 +453,33 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
 .callout b { font-family: var(--f-display); }
 .callout ul { margin: 0; padding-left: 1.1em; }
 
+/* ---------- trolley run ---------- */
+.meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meter > div { height: 100%; background: var(--brand); border-radius: 999px; transition: width .4s var(--ease); }
+.sheet.plain .grab { background: var(--line); }
+.sheet.plain .close { background: var(--surface-2); color: var(--ink); }
+.run { padding: 26px var(--gutter-r) 8px var(--gutter-l); display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.run > * { min-width: 0; }
+.run-head { display: grid; gap: 6px; padding-right: 44px; }
+.run-head h2 { font-size: 1.5rem; font-weight: 900; font-stretch: 86%; }
+.run-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; display: grid; gap: 8px; justify-items: start; }
+.run-card h3 { font-size: 1.35rem; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.run-card .note { color: var(--save); font-weight: 700; }
+.sheet .run-card .run-ic { width: 58px; height: 58px; border-radius: 17px; display: grid; place-items: center; color: #fff; }
+.sheet .run-card .run-ic > .ic { width: 30px; height: 30px; stroke-width: 1.7; }
+.qty { font-family: var(--f-display); font-weight: 800; font-size: 1.15rem; display: flex; align-items: baseline; gap: 6px; }
+.qty b { font-size: 1.7rem; font-weight: 900; background: var(--ticket); color: var(--ticket-ink); border-radius: 8px; padding: 0 10px; font-variant-numeric: tabular-nums; }
+.run-open { min-height: 56px; font-size: 1.1rem; }
+.run-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; }
+.run-actions .btn { min-height: 54px; }
+.run-back { text-align: center; color: var(--brand); font-weight: 700; }
+.run-next { text-align: center; }
+.run-done { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 10px 0; }
+.run-done .em-ic { width: 92px; height: 92px; border-radius: 30px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; }
+.run-done h3 { font-size: 1.35rem; font-weight: 900; }
+.nudge { animation: nudge .5s var(--ease) 2; }
+@keyframes nudge { 50% { transform: scale(1.05); box-shadow: 0 0 0 6px var(--brand-soft); } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
@@ -1137,6 +1164,59 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
   /* ---------- list screen ---------- */
   const ticksKey = () => "dd-ticks-" + ((state.ideas && state.ideas.made) || "");
   function getTicks() { try { return JSON.parse(store.get(ticksKey()) || "{}"); } catch { return {}; } }
+  function setTick(k, on) { const t = getTicks(); if (on) t[k] = true; else delete t[k]; store.set(ticksKey(), JSON.stringify(t)); }
+
+  // Neither store lets other apps add to a trolley, so every item opens at the store for you to tap Add.
+  const STORES = {
+    coles: { name: "Coles", home: "https://www.coles.com.au/", search: (q) => "https://www.coles.com.au/search/products?q=" + encodeURIComponent(q) },
+    woolworths: { name: "Woolworths", home: "https://www.woolworths.com.au/", search: (q) => "https://www.woolworths.com.au/shop/search/products?searchTerm=" + encodeURIComponent(q) },
+  };
+  state.shopAt = STORES[store.get("dd-shop")] ? store.get("dd-shop") : "coles";
+  state.showPantry = store.get("dd-pantry") === "1";
+  // A store's own brand isn't on the other store's shelves, so search for the product itself.
+  const genericName = (n) => String(n).replace(/^(coles|woolworths|macro)\s+((finest|simply|kitchen|perform|graze|organic|deli|asia|entertaining|made easy|butcher|brand)\s+)*/i, "")
+    .replace(/\b(rspca approved|no added hormones?|australian)\b/gi, "").replace(/\s+/g, " ").trim();
+  // "2 cloves garlic" -> "garlic", "300ml thickened cream" -> "thickened cream"
+  const searchTerm = (s) => String(s).replace(/\(.*?\)/g, "")
+    .replace(/^[\s\d/.,½¼¾⅓⅔-]+(?:x\s*)?(?:(?:g|kg|ml|l|litres?|cups?|tbsp|tsp|tablespoons?|teaspoons?|cloves?|cans?|tins?|packets?|packs?|bunch(?:es)?|heads?|pieces?|sprigs?|handfuls?|slices?|sheets?|jars?|bottles?)\b\.?\s*)?(?:of\s+)?/i, "")
+    .replace(/,.*$/, "").trim() || String(s);
+  const PANTRY = /\b(salt|pepper|oil|water|sugar|flour|cumin|paprika|turmeric|garam masala|curry powder|chil(l)?i flakes|oregano|thyme|rosemary|dried|spices?|vinegar|stock cubes?|cornflour|cornstarch|baking|bay leaves?|cinnamon|soy sauce|fish sauce|honey|seasoning|mustard|ketchup|tomato paste|nutmeg|coriander seeds?)\b/i;
+  function linkFor(it) {
+    const st = STORES[state.shopAt];
+    if (it.kind === "special") return it.store === st.name && it.url ? it.url : st.search(genericName(it.item));
+    return st.search(searchTerm(it.item));
+  }
+  const isDirect = (it) => it.kind === "special" && it.store === STORES[state.shopAt].name && !!it.url;
+  // Non-special ingredients across the picked meals, merged by name.
+  function buildOthers(recipes) {
+    const by = new Map();
+    for (const r of recipes) for (const o of r.other || []) {
+      const name = String((o && o.item) || o || "").trim(); if (!name) continue;
+      const k = "o|" + norm(name);
+      const e = by.get(k) || { key: k, kind: "other", item: name, cost: 0, meals: [], pantry: PANTRY.test(name) && !/(red|green|yellow|bell|sweet) peppers?/i.test(name) && num(o.cost) <= 2 };
+      e.cost = round2(e.cost + num(o.cost)); if (!e.meals.includes(r.title)) e.meals.push(r.title); by.set(k, e);
+    }
+    return [...by.values()];
+  }
+  // Everything to buy, in aisle order: specials first, then the rest.
+  function shopItems(recipes) {
+    recipes = recipes || selectedRecipes();
+    const order = catsPresent();
+    const specials = buildShopping(recipes).map((s) => ({ ...s, kind: "special" })).sort((a, b) => (order.indexOf(a.cat) + 99) % 99 - (order.indexOf(b.cat) + 99) % 99);
+    const others = buildOthers(recipes);
+    return { specials, others, shownOthers: others.filter((o) => state.showPantry || !o.pantry) };
+  }
+
+  const rowHtml = (it, ticks) => {
+    const on = !!ticks[it.key], st = STORES[state.shopAt], direct = isDirect(it);
+    return `<div class="item${on ? " done" : ""}">
+      <button type="button" class="check" role="checkbox" aria-checked="${on}" data-tick="${esc(it.key)}" aria-label="${esc(it.item)}">${icon("check")}</button>
+      <div class="it"><b>${it.kind === "special" ? `${it.packs} × ` : ""}${esc(it.item)}</b><span>${it.kind === "special" ? [esc(it.size || ""), esc(it.promo || "")].filter(Boolean).join(" · ") : `for ${esc(it.meals.join(", "))}`}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</div>
+      <span class="ip">${it.kind === "special" ? money(it.cost) : it.cost ? "~" + money(it.cost) : ""}</span>
+      <a class="open" href="${esc(linkFor(it))}" target="_blank" rel="noopener" aria-label="${direct ? "Open" : "Search for"} ${esc(it.item)} at ${st.name}">${icon(direct ? "external" : "search")}</a>
+    </div>`;
+  };
+
   function renderList() {
     const body = $("listBody"), recipes = selectedRecipes();
     if (!recipes.length) {
@@ -1144,41 +1224,48 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
       $("fillCard").hidden = true;
       return;
     }
-    const shopping = buildShopping(recipes), t = computeTotals(recipes, shopping), ticks = getTicks();
-    const done = shopping.filter((s) => ticks[s.key]).length;
+    const { specials, others, shownOthers } = shopItems(recipes), t = computeTotals(recipes, specials), ticks = getTicks();
+    const all = [...specials, ...shownOthers], done = all.filter((s) => ticks[s.key]).length;
+    const otherCost = round2(shownOthers.reduce((a, o) => a + o.cost, 0)), st = STORES[state.shopAt];
+    const pantryCount = others.filter((o) => o.pantry).length;
     const groups = {};
-    shopping.forEach((s) => (groups[s.cat] = groups[s.cat] || []).push(s));
+    specials.forEach((s) => (groups[s.cat] = groups[s.cat] || []).push(s));
     const order = catsPresent().concat(Object.keys(groups).filter((c) => !catsPresent().includes(c)));
     body.innerHTML = `
+      <div class="seg" role="radiogroup" aria-label="Shopping at">${Object.entries(STORES).map(([id, s]) => `<button type="button" role="radio" data-shop="${id}" aria-checked="${id === state.shopAt}">${s.name}</button>`).join("")}</div>
+      ${state.shopAt !== "coles" ? `<p class="fine">This week's specials and prices are from Coles. At Woolworths each item opens a search for the same thing, so prices and specials there may differ.</p>` : ""}
       <div class="card progress-card">
-        <div class="top"><div><b>${done} of ${shopping.length}</b> <span class="fine">in the trolley</span></div><span class="pill brand">${money(t.checkout)}</span></div>
-        <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="${shopping.length}" aria-valuenow="${done}" aria-label="Items ticked off"><div style="width:${shopping.length ? (100 * done) / shopping.length : 0}%"></div></div>
+        <div class="top"><div><b>${done} of ${all.length}</b> <span class="fine">in the trolley</span></div><span class="pill brand">about ${money(round2(t.checkout + otherCost))}</span></div>
+        <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="${all.length}" aria-valuenow="${done}" aria-label="Items ticked off"><div style="width:${all.length ? (100 * done) / all.length : 0}%"></div></div>
+        <button class="btn primary block" type="button" id="startRun">${icon("cart")}${done && done < all.length ? "Continue" : done === all.length ? "Check" : "Start"} trolley run at ${st.name}</button>
+        <p class="fine" style="text-align:center">One item at a time: open it at ${st.name}, tap Add there, come back and tap Added.</p>
       </div>
-      ${order.filter((c) => groups[c]).map((c) => `
-        <div class="card group-card"><div class="group-title">${icon(CAT_ICON[c] || "tag")}${esc(c)}</div>
-          ${groups[c].map((it) => { const on = !!ticks[it.key]; return `<div class="item${on ? " done" : ""}">
-            <button type="button" class="check" role="checkbox" aria-checked="${on}" data-tick="${esc(it.key)}" aria-label="${esc(it.item)}">${icon("check")}</button>
-            <div class="it"><b>${it.packs} × ${esc(it.item)}</b><span>${[esc(it.size || ""), esc(it.promo || "")].filter(Boolean).join(" · ")}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</div>
-            <span class="ip">${money(it.cost)}</span>
-            ${it.url ? `<a class="open" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.item)} at ${esc(it.store)}">${icon("external")}</a>` : "<span></span>"}
-          </div>`; }).join("")}</div>`).join("")}
+      <h2 class="sec-label">On special</h2>
+      ${order.filter((c) => groups[c]).map((c) => `<div class="card group-card"><div class="group-title">${icon(CAT_ICON[c] || "tag")}${esc(c)}</div>${groups[c].map((it) => rowHtml(it, ticks)).join("")}</div>`).join("")}
+      ${others.length ? `<div class="sec-head"><h2 class="sec-label">Everything else</h2>${pantryCount ? `<button class="sec-link" type="button" id="togglePantry">${state.showPantry ? "Hide" : "Show"} ${plural(pantryCount, "pantry staple")}</button>` : ""}</div>
+        <div class="card group-card">${shownOthers.length ? shownOthers.map((it) => rowHtml(it, ticks)).join("") : `<p class="fine" style="padding:14px 16px">Only pantry staples left. Tap Show to see them.</p>`}</div>` : ""}
       <div class="card totals">
-        <div class="tr main"><span>Specials at the checkout</span><span>${money(t.checkout)}</span></div>
-        <div class="tr"><span>Full price for the same items</span><s>${money(t.checkoutFull)}</s></div>
-        <div class="tr"><span>Saving at the checkout</span><span class="save-t">${money(round2(t.checkoutFull - t.checkout))}</span></div>
+        <div class="tr main"><span>Estimated total</span><span>${money(round2(t.checkout + otherCost))}</span></div>
+        <div class="tr"><span>Specials (this week's prices)</span><span>${money(t.checkout)}</span></div>
+        ${shownOthers.length ? `<div class="tr"><span>Everything else (Claude's estimate)</span><span>~${money(otherCost)}</span></div>` : ""}
+        <div class="tr"><span>Saving on the specials</span><span class="save-t">${money(round2(t.checkoutFull - t.checkout))}</span></div>
       </div>
-      <p class="fine">This list covers the specials for your picked meals, in whole packs, with shared packs added together. Multibuy deals only get the deal price for full sets. Tap ${icon("external", "sm")} to open an item at the store and use Add to trolley there.</p>
+      <p class="fine">Specials are in whole packs, with shared packs added together; multibuy deals only get the deal price for full sets. ${icon("external", "sm")} opens the exact product, ${icon("search", "sm")} searches ${st.name}. Pantry staples like salt, oil and spices are hidden unless you show them.</p>
       <div class="btn-row"><button class="btn ghost" type="button" id="copyList">${icon("copy")}Copy list</button></div>`;
     $("fillCard").hidden = false;
     updateFillUI();
   }
   $("listBody").addEventListener("click", (e) => {
     const c = e.target.closest("[data-tick]");
-    if (c) { const ticks = getTicks(), k = c.dataset.tick; ticks[k] = !ticks[k]; store.set(ticksKey(), JSON.stringify(ticks)); renderList(); renderTabs(); document.querySelector(`[data-tick="${CSS.escape(k)}"]`)?.focus({ preventScroll: true }); return; }
+    if (c) { const k = c.dataset.tick; setTick(k, !getTicks()[k]); renderList(); renderTabs(); document.querySelector(`#listBody [data-tick="${CSS.escape(k)}"]`)?.focus({ preventScroll: true }); return; }
+    const s = e.target.closest("[data-shop]"); if (s) { state.shopAt = s.dataset.shop; store.set("dd-shop", state.shopAt); renderList(); return; }
+    if (e.target.closest("#togglePantry")) { state.showPantry = !state.showPantry; store.set("dd-pantry", state.showPantry ? "1" : "0"); renderList(); renderTabs(); return; }
+    if (e.target.closest("#startRun")) { openRun(e.target.closest("#startRun")); return; }
     const g = e.target.closest("[data-go]"); if (g) { go(g.dataset.go); return; }
     if (e.target.closest("#copyList")) {
-      const shopping = buildShopping(selectedRecipes()), stores = [...new Set(shopping.map((s) => s.store))];
-      const text = stores.map((st) => `${st}:\n` + shopping.filter((s) => s.store === st).map((s) => `- ${s.packs} x ${s.item}${s.size ? ` (${s.size})` : ""}`).join("\n")).join("\n\n");
+      const { specials, shownOthers } = shopItems();
+      const text = `On special (${STORES[state.shopAt].name}):\n` + specials.map((s) => `- ${s.packs} x ${s.item}${s.size ? ` (${s.size})` : ""}`).join("\n") +
+        (shownOthers.length ? `\n\nEverything else:\n` + shownOthers.map((o) => `- ${o.item}`).join("\n") : "");
       try { navigator.clipboard.writeText(text).then(() => toast("Shopping list copied"), () => fallbackCopy(text)); } catch { fallbackCopy(text); }
     }
   });
@@ -1188,6 +1275,51 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     let ok = false; try { ok = document.execCommand("copy"); } catch {}
     ta.remove(); toast(ok ? "Shopping list copied" : "Couldn't copy here. Long-press the list to select it.");
   }
+
+  /* ---------- trolley run: one item at a time, made for a phone ---------- */
+  function runList() { const { specials, shownOthers } = shopItems(); return [...specials, ...shownOthers]; }
+  function runHtml() {
+    const items = runList(), ticks = getTicks(), st = STORES[state.shopAt], skipped = state.runSkipped || new Set();
+    const todo = items.filter((i) => !ticks[i.key] && !skipped.has(i.key));
+    const done = items.filter((i) => ticks[i.key]).length, cur = todo[0], next = todo[1];
+    const head = `<div class="run-head"><span class="sec-label">Trolley run · ${st.name}</span>
+      <h2 id="sheetTitle">${cur ? `Item ${done + skipped.size + 1} of ${items.length}` : "That's everything"}</h2>
+      <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${done}" aria-label="Items added"><div style="width:${items.length ? (100 * done) / items.length : 0}%"></div></div></div>`;
+    if (!cur) {
+      return `<div class="run">${head}
+        <div class="run-done"><div class="em-ic">${icon("check", "xl")}</div><h3>${done === items.length ? "Everything's in your trolley" : `${done} of ${items.length} added`}</h3>
+          <p class="fine">${skipped.size ? `You skipped ${plural(skipped.size, "item")}.` : "Check your trolley at " + st.name + " and pay there."}</p></div>
+        <a class="btn primary block" href="${esc(st.home)}" target="_blank" rel="noopener">${icon("external")}Go to ${st.name}</a>
+        ${skipped.size ? `<button class="btn soft block" type="button" data-run="unskip">Go back to skipped items</button>` : ""}
+        <button class="btn ghost block" type="button" data-run="close">Close</button></div>`;
+    }
+    const direct = isDirect(cur), art = cur.kind === "special" ? CAT_ART[cur.cat] || "brand" : "brand";
+    return `<div class="run">${head}
+      <div class="run-card">
+        <div class="run-ic art ${art}">${icon(cur.kind === "special" ? CAT_ICON[cur.cat] || "tag" : "pot")}</div>
+        <span class="pill soft">${cur.kind === "special" ? `${esc(cur.cat)} · on special` : "Other ingredient"}</span>
+        <h3>${esc(cur.item)}</h3>
+        ${cur.kind === "special" ? `<div class="qty">Add <b>${cur.packs}</b>${cur.size ? ` <span class="fine">× ${esc(cur.size)}</span>` : ""}</div>
+          <p class="fine">${money(cur.price)} each${cur.promo ? ` · ${esc(cur.promo)}` : ""}${cur.note ? `<br><span class="note">${esc(cur.note)}</span>` : ""}</p>`
+          : `<p class="fine">For ${esc(cur.meals.join(", "))}${cur.cost ? ` · about ${money(cur.cost)}` : ""}</p>`}
+        ${direct ? "" : `<p class="fine">${icon("search", "sm")} Searches ${st.name} for “${esc(cur.kind === "special" ? genericName(cur.item) : searchTerm(cur.item))}”. Pick the closest match.</p>`}
+      </div>
+      <a class="btn primary block run-open" href="${esc(linkFor(cur))}" target="_blank" rel="noopener" data-run="open">${icon(direct ? "external" : "search")}${direct ? `Open at ${st.name}` : `Search ${st.name}`}</a>
+      <div class="run-actions"><button class="btn ghost" type="button" data-run="skip" data-key="${esc(cur.key)}">Skip</button><button class="btn soft" type="button" id="runAdded" data-run="added" data-key="${esc(cur.key)}">${icon("check")}Added</button></div>
+      <p class="fine run-back" id="runBack" hidden>Back from ${st.name}? Tap Added once it's in your trolley.</p>
+      ${next ? `<p class="fine run-next">Up next: ${esc(next.kind === "special" ? `${next.packs} × ${next.item}` : next.item)}</p>` : ""}
+    </div>`;
+  }
+  function openRun(from) { state.runSkipped = new Set(); openSheetHtml(runHtml(), from, "run"); }
+  function refreshRun() { $("sheetBody").innerHTML = runHtml(); $("sheetBody").scrollTop = 0; renderList(); renderTabs(); }
+  // Coming back from the store's page: point at "Added".
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || state.sheetMode !== "run" || !state.runAwaiting) return;
+    state.runAwaiting = false;
+    const b = $("runBack"), a = $("runAdded");
+    if (b) b.hidden = false;
+    if (a) { a.focus({ preventScroll: true }); if (!reduced()) { a.classList.remove("nudge"); void a.offsetWidth; a.classList.add("nudge"); } }
+  });
 
   /* ---------- meal sheet ---------- */
   let sheetReturn = null;
@@ -1215,9 +1347,14 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
   }
   function openSheet(key, from) {
     const c = findIdea(key); if (!c) return;
-    sheetReturn = from || document.activeElement;
     state.sheetKey = key;
-    $("sheetBody").innerHTML = sheetHtml(c); $("sheetBody").scrollTop = 0; markLoaded($("sheetBody"));
+    openSheetHtml(sheetHtml(c), from, "meal");
+  }
+  function openSheetHtml(html, from, mode) {
+    sheetReturn = from || document.activeElement;
+    state.sheetMode = mode;
+    $("sheet").classList.toggle("plain", mode !== "meal");
+    $("sheetBody").innerHTML = html; $("sheetBody").scrollTop = 0; markLoaded($("sheetBody"));
     $("scrim").hidden = false; $("sheet").hidden = false;
     requestAnimationFrame(() => { $("scrim").classList.add("show"); $("sheet").classList.add("show"); });
     document.body.style.overflow = "hidden";
@@ -1229,7 +1366,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     $("scrim").classList.remove("show"); $("sheet").classList.remove("show");
     document.body.style.overflow = "";
     setTimeout(() => { $("scrim").hidden = true; $("sheet").hidden = true; renderPickbar(); }, reduced() ? 0 : 320);
-    state.sheetKey = null;
+    state.sheetKey = null; state.sheetMode = null; state.runAwaiting = false;
     if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus({ preventScroll: true });
   }
   $("sheetClose").addEventListener("click", closeSheet);
@@ -1244,6 +1381,15 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     }
   });
   $("sheetBody").addEventListener("click", (e) => {
+    const r = e.target.closest("[data-run]");
+    if (r) {
+      const act = r.dataset.run;
+      if (act === "open") { state.runAwaiting = true; return; }        // the link opens the store; we wait for them to come back
+      if (act === "added") { setTick(r.dataset.key, true); refreshRun(); $("runAdded")?.focus({ preventScroll: true }); return; }
+      if (act === "skip") { state.runSkipped.add(r.dataset.key); refreshRun(); return; }
+      if (act === "unskip") { state.runSkipped.clear(); refreshRun(); return; }
+      if (act === "close") { closeSheet(); return; }
+    }
     const b = e.target.closest("[data-sheetpick]"); if (!b) return;
     const k = b.dataset.sheetpick, wasOn = state.ideas.selected.includes(k);
     togglePick(k, false);
@@ -1293,7 +1439,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     if (state.view === "plan") sub = d ? `${(d.stores || []).join(" & ") || "Specials"} · updated ${when}` : $("viewSub").textContent;
     if (state.view === "ideas") { title = "Meal ideas"; sub = I && I.candidates.length ? `${plural(I.candidates.length, "idea")} · ${I.selected.length} picked` : state.search ? "Finding ideas…" : "Nothing yet"; }
     if (state.view === "week") { title = "Your week"; if (recipes.length) { const t = computeTotals(recipes, []); sub = `${plural(t.dinners, "dinner")} · ${money(t.meals)}`; } else sub = "No meals picked yet"; }
-    if (state.view === "list") { title = "Shopping list"; if (recipes.length) { const s = buildShopping(recipes); sub = `${plural(s.length, "item")} · ${money(computeTotals(recipes, s).checkout)}`; } else sub = "Empty"; }
+    if (state.view === "list") { title = "Shopping list"; if (recipes.length) { const n = runList().length; sub = `${plural(n, "item")} · shopping at ${STORES[state.shopAt].name}`; } else sub = "Empty"; }
     if (state.view === "deals") { title = state.q ? "Search" : state.dealsCat ? esc(state.dealsCat) : "This week's deals"; sub = state.items.length ? `${plural(state.items.length, "special")} · ${when}` : "Loading…"; }
     $("viewTitle").innerHTML = title; $("viewSub").textContent = sub;
     $("backBtn").hidden = !(state.view === "deals" && (state.dealsCat || state.q));
@@ -1305,8 +1451,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     if (state.busy && state.search) { bI.hidden = false; bI.className = "badge dot"; bI.textContent = ""; }
     else { bI.className = "badge"; bI.hidden = !n; bI.textContent = String(n); }
     $("bWeek").hidden = !picked; $("bWeek").textContent = String(picked);
-    const recipes = selectedRecipes(), shopping = recipes.length ? buildShopping(recipes) : [], ticks = getTicks();
-    const left = shopping.filter((s) => !ticks[s.key]).length;
+    const ticks = getTicks(), left = selectedRecipes().length ? runList().filter((s) => !ticks[s.key]).length : 0;
     $("bList").hidden = !left; $("bList").textContent = String(left);
   }
 
@@ -1425,7 +1570,7 @@ PHOTO: set "photo" to the key of the closest-looking dish from this photo list (
 
 COSTING (the page does the maths, so be precise with these numbers):
 - In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS recipe uses (a fraction is fine, e.g. 0.5 of a 1kg pack for 500g).
-- "other" lists every non-special ingredient with "cost" = your AUD estimate for just the amount used, at typical Australian supermarket prices (pantry staples like oil, salt and spices cost cents).
+- "other" lists every non-special ingredient, one ingredient per entry with its amount (e.g. "300ml thickened cream", "2 brown onions", never "onion, garlic and spices"), with "cost" = your AUD estimate for just the amount used, at typical Australian supermarket prices (pantry staples like oil, salt and spices cost cents).
 
 Reply with only JSON in this shape. The "recipes" array must hold exactly ${count} recipes (the page counts them):
 {"recipes":[{${recipeShape}${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"notes":"one or two short tips"}`;
@@ -1554,7 +1699,7 @@ Reply with only JSON in this shape. The "recipes" array must hold exactly ${coun
     if (!b.ok || !state.sample) { $("fillBtn").disabled = false; updateFillUI(); if (!state.sample) $("fillStatus").textContent = "Sign in to Claude to use the trolley helper."; return; }
     const caps = await within(state.sample.limits().catch(() => null), 5000);
     if (caps && !caps.tools) { $("fillBtn").disabled = false; $("fillStatus").classList.add("err"); $("fillStatus").textContent = "This Claude app can't run the trolley helper yet. Update the app and try again."; return; }
-    const items = buildShopping(selectedRecipes()).filter((s) => s.url);
+    const ticks0 = getTicks(), items = runList().filter((i) => !ticks0[i.key]).map((i) => ({ ...i, link: linkFor(i) }));
     if (!items.length) { $("fillBtn").disabled = false; $("fillStatus").textContent = "There's nothing in the shopping list to add."; return; }
     const mcp = b.mcp, descs = b.descs || {};
     const tools = BROWSER_TOOLS.map((name) => ({
@@ -1575,13 +1720,13 @@ Reply with only JSON in this shape. The "recipes" array must hold exactly ${coun
     tools.push({ name: "report_item", description: "Call once per shopping-list item after trying it: status is added, partly_added, unavailable or failed; note says what happened.",
       inputSchema: { type: "object", properties: { item: { type: "string" }, status: { type: "string" }, quantity: { type: "number" }, note: { type: "string" } }, required: ["item", "status"] },
       execute(input) { const ok = /^added/.test(String(input.status)); fillLog(`${ok ? "✓" : "!"} ${String(input.item).slice(0, 80)}: ${String(input.status).replace("_", " ")}${input.quantity ? ` (${Number(input.quantity)})` : ""}${input.note ? ` · ${String(input.note).slice(0, 120)}` : ""}`, ok ? "ok" : "warn"); return "noted"; } });
-    const list = items.map((s, i) => `${i + 1}. ${s.packs} × ${s.item}${s.size ? ` (${s.size})` : ""} [${s.store}] ${s.url}`).join("\n");
+    const list = items.map((s, i) => `${i + 1}. ${s.kind === "special" ? `${s.packs} × ${s.item}${s.size ? ` (${s.size})` : ""}` : s.item} ${s.link}`).join("\n");
     const prompt = `You are filling the person's online supermarket trolley in the Claude desktop app's built-in browser, using the browser_* tools. They are signed in to their own account there.
 
-Shopping list (quantity × product, store, product page):
+Shopping list (quantity × product, then its link):
 ${list}
 
-For each item: open its product page (browser_preview_start with the url for the first one, then browser_navigate in that same tab), find the "Add to trolley" (or "Add") button with browser_find or browser_read_page, click it with browser_computer, and raise the quantity to the number listed (click "+" or set the quantity box). Prefer reading the page over screenshots. Then call report_item for that item. If an item is unavailable or out of stock, report it and move on.
+The store is ${STORES[state.shopAt].name}. For each item: open its link (browser_preview_start with the url for the first one, then browser_navigate in that same tab); if the link is a search page, choose the closest match (for loose ingredients, the smallest pack that covers the amount), find the "Add to trolley" (or "Add") button with browser_find or browser_read_page, click it with browser_computer, and raise the quantity to the number listed (click "+" or set the quantity box). Prefer reading the page over screenshots. Then call report_item for that item. If an item is unavailable or out of stock, report it and move on.
 
 RULES: Never open the trolley checkout, never enter payment or delivery details, never place an order, and never sign out or change account settings. If you see that the person is not signed in, or a sign-in page or a "verify you are human" check appears, stop and say so. When every item is done, finish with a short plain summary: what went in, anything missing, and that they should open the trolley, check it and pay themselves.`;
     state.filling = true; state.fillAbort = new AbortController();
