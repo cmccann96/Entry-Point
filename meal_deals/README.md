@@ -74,8 +74,10 @@ categories and sub-types from `categories.py`, with a price per kg where the sto
 The planner offers plan styles (balanced, best bang for buck, cheapest with meat, quick &
 easy, healthy, vegetarian), optional extras (kid friendly, lunches, etc.), and how many
 meals to cook, how many nights each meal lasts, and how many people eat each night.
-"Plan my dinners" asks Claude directly from the page, so no API key is needed there. The
-latest plan is saved to `plans/latest`, so it shows on every device.
+"Find meal ideas" asks Claude directly from the page (no API key needed) for about twice as
+many options as meals wanted; you pick the ones you like and the page builds the plan, costs
+and shopping list from your picks, adding up shared packs and only giving multibuy prices
+for full sets. Ideas and picks are saved to `plans/latest`, so they show on every device.
 
 Recipes come from RecipeTin Eats by default: Claude picks dishes from her site that suit
 the specials. Her site's robots.txt opts out of Anthropic's crawlers, so nothing here

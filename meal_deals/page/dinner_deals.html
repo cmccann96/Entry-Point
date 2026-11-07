@@ -161,6 +161,22 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
 .cook { display: grid; gap: 10px; justify-items: start; }
 .cook .btn { text-decoration: none; }
 
+/* Meal ideas to pick from */
+.ideas { display: grid; gap: 12px; }
+.idea-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.idea { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.idea.picked { border: 2px solid var(--brand); padding: 11px 13px; }
+.idea-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.idea-head h3 { font-size: 1.1rem; font-weight: 800; min-width: 0; }
+.idea-desc { margin: 0; color: var(--muted); font-size: .9rem; }
+.idea-cost { margin: 0; font-variant-numeric: tabular-nums; font-size: .92rem; }
+.idea-uses { margin: 0; font-size: .8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.idea-uses span { background: var(--ticket); color: var(--ticket-ink); border-radius: 3px; padding: 0 5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idea-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.pick { border: 1px solid var(--brand); background: transparent; color: var(--brand); border-radius: 8px; padding: 8px 16px; font-family: var(--f-display); font-weight: 800; cursor: pointer; }
+.pick[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+.deal-note { display: block; font-size: .8rem; color: var(--save); }
+
 /* Plan style picker */
 fieldset.group-set { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
 fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -247,10 +263,12 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
       <textarea id="prefs" placeholder="e.g. no pork, we already have rice and spices, someone hates mushrooms"></textarea>
     </div>
     <div class="go">
-      <button class="btn" id="planBtn" type="button" disabled>Plan my dinners</button>
+      <button class="btn" id="planBtn" type="button" disabled>Find meal ideas</button>
       <span class="status" id="status" role="status"></span>
     </div>
   </section>
+
+  <section class="ideas" id="ideas" hidden aria-label="Meal ideas"></section>
 
   <section class="plan" id="plan" hidden aria-live="polite"></section>
 
@@ -504,44 +522,146 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
   }
   function priceLine(ref, it, packs) {
     const price = it ? it.p : num(ref.price), full = it && it.w ? it.w : price;
-    return { item: it ? it.n : String(ref.item || "Item"), store: it ? it.s : String(ref.store || ""), size: it ? it.z || "" : "", url: it ? it.u || "" : "",
+    const item = it ? it.n : String(ref.item || "Item"), storeName = it ? it.s : String(ref.store || "");
+    return { key: `${storeName}|${item}`, item, store: storeName, size: it ? it.z || "" : "", url: it ? it.u || "" : "",
              promo: it ? it.o || "" : "", packs, price, full, cost: round2(packs * price), fullCost: round2(packs * full) };
   }
-  function costPlan(plan, chosen, defaultServes, nightsEach, source) {
-    const recipes = plan.recipes.map((r) => {
-      const sale = (Array.isArray(r.sale) ? r.sale : []).map((s) => ({ ...priceLine(s, lookup(s, chosen), num(s.packs) || 1), use: String(s.use || s.qty || "") }));
-      const other = (Array.isArray(r.other) ? r.other : []).map((o) => (typeof o === "string" ? { item: o, cost: 0 } : { item: String(o.item || ""), cost: num(o.cost) }));
-      // A batch dish covers several nights; its servings already include every night.
-      // The household chose how many nights each meal lasts; hold Claude to it.
-      const nightsCovered = nightsEach ? Math.min(7, Math.max(1, nightsEach)) : Math.min(7, Math.max(1, Math.round(num(r.nights)) || 1));
-      const serves = Math.round(num(r.servings)) || defaultServes * nightsCovered;
-      const otherCost = round2(other.reduce((a, o) => a + o.cost, 0));
-      const total = round2(sale.reduce((a, s) => a + s.cost, 0) + otherCost);
-      const fullTotal = round2(sale.reduce((a, s) => a + s.fullCost, 0) + otherCost);
-      return { title: String(r.title || "Dinner"), description: String(r.description || ""), minutes: num(r.minutes), servings: serves,
-               nights: nightsCovered, ideas: (Array.isArray(r.ideas) ? r.ideas : []).map(String).slice(0, 7), storage: String(r.storage || ""),
-               steps: (Array.isArray(r.steps) ? r.steps : []).map(String), sale, other, otherCost, total, fullTotal,
-               source: source === "rte" ? "rte" : "claude", rteTitle: String(r.rte_title || ""), recipeServes: num(r.recipe_serves),
-               swaps: (Array.isArray(r.swaps) ? r.swaps : []).map(String).slice(0, 6),
-               perServe: round2(total / serves), perNight: round2(total / nightsCovered) };
+  // "Buy 2 for $13.50" / "Pick any 2 for $5": the deal price needs that many.
+  const dealQty = (promo) => { const m = /(?:buy|pick any)\s+(\d+)\s+for/i.exec(String(promo || "")); return m ? Number(m[1]) : 1; };
+
+  // One recipe, priced. `ask` carries the specials Claude saw and the household's settings.
+  function costRecipe(r, ask, key) {
+    const sale = (Array.isArray(r.sale) ? r.sale : []).map((s) => ({ ...priceLine(s, lookup(s, ask.chosen), num(s.packs) || 1), use: String(s.use || s.qty || "") }));
+    const other = (Array.isArray(r.other) ? r.other : []).map((o) => (typeof o === "string" ? { item: o, cost: 0 } : { item: String(o.item || ""), cost: num(o.cost) }));
+    // The household chose how many nights each meal lasts; hold Claude to it.
+    const nightsCovered = ask.each ? Math.min(7, Math.max(1, ask.each)) : Math.min(7, Math.max(1, Math.round(num(r.nights)) || 1));
+    const serves = Math.round(num(r.servings)) || ask.servings * nightsCovered;
+    const otherCost = round2(other.reduce((a, o) => a + o.cost, 0));
+    const total = round2(sale.reduce((a, s) => a + s.cost, 0) + otherCost);
+    const fullTotal = round2(sale.reduce((a, s) => a + s.fullCost, 0) + otherCost);
+    return { key, title: String(r.title || "Dinner"), description: String(r.description || ""), minutes: num(r.minutes), servings: serves,
+             nights: nightsCovered, ideas: (Array.isArray(r.ideas) ? r.ideas : []).map(String).slice(0, 7), storage: String(r.storage || ""),
+             steps: (Array.isArray(r.steps) ? r.steps : []).map(String), sale, other, otherCost, total, fullTotal,
+             source: ask.source === "rte" ? "rte" : "claude", rteTitle: String(r.rte_title || ""), recipeServes: num(r.recipe_serves),
+             swaps: (Array.isArray(r.swaps) ? r.swaps : []).map(String).slice(0, 6),
+             perServe: round2(total / serves), perNight: round2(total / nightsCovered) };
+  }
+
+  // The shopping list for whichever meals are picked: add up what each meal uses, round up to whole packs.
+  function buildShopping(recipes) {
+    const by = new Map();
+    for (const r of recipes) for (const s of r.sale) {
+      const k = s.key || `${s.store}|${s.item}`;
+      const e = by.get(k) || { ...s, key: k, need: 0 };
+      e.need += num(s.packs); by.set(k, e);
+    }
+    return [...by.values()].map((e) => {
+      const packs = Math.max(1, Math.ceil(e.need - 1e-6));
+      const q = dealQty(e.promo);
+      // Multibuy: only full sets get the deal price; the rest are charged at the normal price.
+      const dealItems = q > 1 ? Math.floor(packs / q) * q : packs;
+      const rest = packs - dealItems;
+      const cost = round2(dealItems * e.price + rest * e.full);
+      const note = q > 1 && rest > 0 && e.full > e.price ? `Add ${q - (rest % q)} more to get the ${e.promo} price` : "";
+      return { key: e.key, item: e.item, store: e.store, size: e.size, url: e.url, promo: e.promo, packs, price: e.price, full: e.full,
+               cost, fullCost: round2(packs * e.full), note };
     });
-    const shopping = (Array.isArray(plan.shopping) ? plan.shopping : []).map((s) => priceLine(s, lookup(s, chosen), Math.max(1, Math.ceil(num(s.packs) || 1))));
+  }
+  function computeTotals(recipes, shopping) {
     const sum = (arr, k) => round2(arr.reduce((a, x) => a + x[k], 0));
     const serves = recipes.reduce((a, r) => a + r.servings, 0);
-    const nightsTotal = recipes.reduce((a, r) => a + r.nights, 0);
+    const nightsTotal = recipes.reduce((a, r) => a + (r.nights || 1), 0);
     const totals = { meals: sum(recipes, "total"), mealsFull: sum(recipes, "fullTotal"), checkout: sum(shopping, "cost"),
                      checkoutFull: sum(shopping, "fullCost"), extras: sum(recipes, "otherCost"), dinners: nightsTotal, cooks: recipes.length, serves };
     totals.perDinner = nightsTotal ? round2(totals.meals / nightsTotal) : 0;
     totals.perServe = serves ? round2(totals.meals / serves) : 0;
-    return { recipes, shopping, totals, notes: String(plan.notes || ""), costed: true };
+    return totals;
+  }
+
+  /* ---------- meal ideas to pick from ---------- */
+  const pct = (save, full) => (full > 0 ? Math.round((100 * save) / full) : 0);
+  const selectedRecipes = () => { const I = state.ideas; if (!I) return []; const m = new Map(I.candidates.map((c) => [c.key, c])); return I.selected.map((k) => m.get(k)).filter(Boolean); };
+
+  function renderIdeas() {
+    const I = state.ideas;
+    if (!I || !I.candidates.length) { $("ideas").hidden = true; return; }
+    const picked = new Set(I.selected), want = I.meals || 0;
+    const style = I.style ? styleOf(I.style) : null;
+    const extras = (I.extras || []).map((id) => EXTRAS.find((x) => x.id === id)?.name).filter(Boolean);
+    const each = I.each || 1;
+    $("ideas").innerHTML = `
+      <div class="plan-head"><h2>Pick your meals</h2><span class="totals" id="pickCount">${picked.size} of ${want || "?"} picked</span></div>
+      <div class="plan-tags">${style ? `<span class="ptag">${esc(style.name)}</span>` : ""}${extras.map((x) => `<span class="ptag light">${esc(x)}</span>`).join("")}<span class="ptag light">${each > 1 ? `each lasts ${each} nights` : "one night each"} · ${I.servings || "?"} per night</span></div>
+      <p class="fine">Tap <b>Pick</b> on the meals you like. Your plan, costs and shopping list build underneath as you go.${picked.size > want && want ? ` You've picked more than the ${want} you asked for, which is fine: the plan covers them all.` : ""}</p>
+      <div class="idea-grid">${I.candidates.map((c) => { const on = picked.has(c.key), rs = round2(c.fullTotal - c.total); return `
+        <article class="idea${on ? " picked" : ""}">
+          <div class="idea-head"><h3>${esc(c.title)}</h3>${c.source === "rte" ? `<span class="src">RecipeTin Eats</span>` : ""}</div>
+          <p class="idea-desc">${esc(c.description)}</p>
+          <p class="idea-cost"><b>${money(c.total)}</b> · ${money(c.perServe)} a serve${rs > 0 ? ` · <span class="save-t">save ${pct(rs, c.fullTotal)}%</span>` : ""}${c.minutes ? ` · ${c.minutes} min` : ""}</p>
+          ${c.sale.length ? `<p class="idea-uses">Uses ${c.sale.slice(0, 3).map((s) => `<span>${esc(s.item.replace(/^Coles\s+/i, ""))}</span>`).join("")}${c.sale.length > 3 ? ` +${c.sale.length - 3} more` : ""}</p>` : ""}
+          <div class="idea-actions">
+            <button type="button" class="pick" data-pick="${esc(c.key)}" aria-pressed="${on}">${on ? "✓ Picked" : "Pick"}</button>
+            ${c.source === "rte" ? `<a class="fine" href="${esc(rteLink(c.rteTitle || c.title))}" target="_blank" rel="noopener">See the recipe ↗</a>` : ""}
+          </div>
+        </article>`; }).join("")}</div>
+      <div class="go"><button class="btn ghost" id="moreIdeas" type="button">Show me more ideas</button><span class="status" id="moreStatus" role="status"></span></div>`;
+    $("ideas").hidden = false;
+    $("moreIdeas").disabled = !state.sample || state.busy;
+  }
+
+  function renderAll() { renderIdeas(); renderPlanFromSelection(); }
+
+  function renderPlanFromSelection() {
+    const I = state.ideas;
+    if (!I) { $("plan").hidden = true; return; }
+    const recipes = selectedRecipes();
+    if (!recipes.length) {
+      $("plan").hidden = false;
+      $("plan").innerHTML = `<div class="empty">Pick meals above and your plan, costs and shopping list will appear here.</div>`;
+      return;
+    }
+    const shopping = buildShopping(recipes);
+    renderPlan({ plan: { recipes, shopping, totals: computeTotals(recipes, shopping), notes: I.notes || "" }, made: I.made });
+  }
+
+  $("ideas").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pick]");
+    if (b && state.ideas) {
+      const k = b.dataset.pick, I = state.ideas;
+      I.selected = I.selected.includes(k) ? I.selected.filter((x) => x !== k) : [...I.selected, k];
+      renderAll(); saveIdeasSoon();
+      return;
+    }
+    if (e.target.closest("#moreIdeas")) findIdeas(true);
+  });
+
+  // Save picks to the page's database (shared across your devices); one write at a time, after a short pause.
+  let saveTimer, saveChain = Promise.resolve();
+  function saveIdeasSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveChain = saveChain.then(saveIdeas); }, 600); }
+  async function saveIdeas() {
+    if (!state.db || !state.ideas) return;
+    state.ideas.rev = Math.random().toString(36).slice(2);
+    state.lastRev = state.ideas.rev;
+    try { await state.db.doc("plans/latest").set({ ...state.ideas, kind: "ideas" }); } catch {}
+  }
+  function loadSaved(d) {
+    if (!d || (d.rev && d.rev === state.lastRev)) return;   // our own write coming back
+    if (d.kind === "ideas" && Array.isArray(d.candidates)) {
+      state.ideas = { ...d, selected: Array.isArray(d.selected) ? d.selected.map(String) : [] };
+    } else if (d.plan && Array.isArray(d.plan.recipes)) {
+      // A plan saved before meal picking existed: every meal in it counts as picked.
+      const cands = d.plan.recipes.map((r, i) => ({ ...r, key: r.key || "old" + i, sale: (r.sale || []).map((s) => ({ ...s, key: s.key || `${s.store}|${s.item}` })) }));
+      state.ideas = { kind: "ideas", candidates: cands, selected: cands.map((c) => c.key), made: d.made, style: d.style, extras: d.extras || [],
+                      meals: cands.length, each: cands[0]?.nights || 1, servings: cands[0] ? Math.round(cands[0].servings / (cands[0].nights || 1)) : 0, notes: d.plan.notes || "" };
+    } else return;
+    renderAll();
   }
 
   /* ---------- plan rendering ---------- */
   const nights = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const pct = (save, full) => (full > 0 ? Math.round((100 * save) / full) : 0);
   function renderPlan(saved) {
     const p = saved && saved.plan;
-    if (!p || !p.costed || !Array.isArray(p.recipes)) { $("plan").hidden = true; return; }
+    if (!p || !Array.isArray(p.recipes)) { $("plan").hidden = true; return; }
     const key = "dd-ticks-" + (saved.made || "");
     let ticks = {}; try { ticks = JSON.parse(store.get(key) || "{}"); } catch {}
     const t = p.totals, save = round2(t.mealsFull - t.meals), coSave = round2(t.checkoutFull - t.checkout);
@@ -559,7 +679,7 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
       return count > 1 ? `${nights[a]}–${nights[b]}` : nights[a];
     };
     $("plan").innerHTML = `
-      <div class="plan-head"><h2>This week's dinners</h2>${made ? `<span class="totals">planned ${made}</span>` : ""}</div>
+      <div class="plan-head"><h2>Your plan</h2>${made ? `<span class="totals">ideas from ${made}</span>` : ""}</div>
       ${style ? `<div class="plan-tags"><span class="ptag">${esc(style.name)}</span>${extras.map((x) => `<span class="ptag light">${esc(x)}</span>`).join("")}</div>` : ""}
       <div class="bill" aria-label="Cost summary">
         <div class="fig main"><span class="lbl">${t.dinners} night${t.dinners === 1 ? "" : "s"} cost${isBatch ? ` · ${t.cooks} cook${t.cooks === 1 ? "" : "s"}` : ""}</span><span class="val">${money(t.meals)}</span><span class="small">${money(t.perDinner)} a night · ${money(t.perServe)} a serve</span></div>
@@ -587,13 +707,13 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
               : `<div><h4>Method</h4><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>`}
           </div>
         </details>`; }).join("")}
-      ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<div class="shop-row"><label for="tick-${j}"><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li-text">${it.packs} × ${esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span></label><span class="amt">${money(it.cost)}</span>${it.url ? `<a class="open" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.item)} at ${esc(it.store)}">Open ↗</a>` : ""}</div>`).join("")}</div>`).join("")}
+      ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<div class="shop-row"><label for="tick-${j}"><input type="checkbox" id="tick-${j}" data-tick="${esc(it.key || j)}"${ticks[it.key || j] ? " checked" : ""}><span class="li-text">${it.packs} × ${esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}${it.note ? `<span class="deal-note">${esc(it.note)}</span>` : ""}</span></label><span class="amt">${money(it.cost)}</span>${it.url ? `<a class="open" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.item)} at ${esc(it.store)}">Open ↗</a>` : ""}</div>`).join("")}</div>`).join("")}
         <div class="go"><button class="btn ghost" id="copyList" type="button">Copy shopping list</button><span class="status" id="copyStatus" role="status"></span></div>
         <p class="fine">Tick items off as you go. Tap <b>Open ↗</b> to see an item at the store and use Add to trolley there (sign in to your store account first). If a link doesn't open in your Claude app, copy the list and search for the items in the store's app.</p>
         <div class="checkout"><span>Specials at the checkout</span><span class="amt">${money(t.checkout)}</span></div>
         <div class="checkout sub2"><span>Full price for the same items</span><span class="amt"><s>${money(t.checkoutFull)}</s></span></div>
         <div class="checkout sub2"><span>Saving at the checkout</span><span class="amt save-t">${money(coSave)}</span></div>
-        <p class="fine">The checkout total covers the specials you buy, in whole packs. Dinner costs above count only the share of each pack a meal uses, plus the other ingredients. Multibuy prices need the full deal quantity.</p></div>
+        <p class="fine">The checkout total covers the specials you buy, in whole packs. Dinner costs above count only the share of each pack a meal uses, plus the other ingredients. Multibuy deals only get the deal price for full sets; anything extra is charged at the normal price.</p></div>
         <div class="fill" id="fill">
           <h3>Fill my trolley</h3>
           <p class="fine">On your computer, open this page in the Claude desktop app and Claude will add every item above to your trolley in the app's browser. It stops before checkout: you review the trolley and pay yourself. Sign in to your store account in the app's browser first.</p>
@@ -640,28 +760,35 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     return chosen;
   }
 
-  function buildPrompt() {
-    const style = styleOf(state.style);
+  // How many options to offer: about twice the meals wanted, at least 3 more, at most 12.
+  const ideaCount = (meals, source) => Math.min(source === "rte" ? 12 : 10, Math.max(meals + 3, meals * 2));
+
+  // `opts` are the settings to plan with: the form's, or (for "more ideas") the ones the current ideas were made with.
+  function buildPrompt(opts) {
+    const style = styleOf(opts.style);
     const chosen = chooseSpecials(style);
     const lines = chosen.map((r, i) => {
       const unit = unitText(r);
       return `#${i} [${r.c}${r.t && r.t !== r.c ? " / " + r.t : ""}] ${r.n}${r.z ? ` (${r.z})` : ""} ${money(r.p)}${r.w ? ` (was ${money(r.w)}, ${pctOff(r)}% off)` : ""}${unit ? ` · ${unit}` : ""}${r.o ? ` - ${r.o}` : ""}`;
     }).join("\n");
-    const meals = stepVal("meals"), each = stepVal("each"), servings = stepVal("servings");
+    const { meals, each, servings, count } = opts;
     const minutes = $("minutes").value, prefs = $("prefs").value.trim();
-    const extras = EXTRAS.filter((x) => state.extras.includes(x.id)).map((x) => "- " + x.prompt).join("\n");
+    const extras = EXTRAS.filter((x) => opts.extras.includes(x.id)).map((x) => "- " + x.prompt).join("\n");
     const batch = each > 1;
-    const task = batch
-      ? `TASK: Plan exactly ${meals} different meal${meals === 1 ? "" : "s"}. Each one is cooked once in a big batch and eaten on ${each} nights in a row by ${servings} ${servings === 1 ? "person" : "people"}, so every recipe has "nights": ${each} and "servings": ${each * servings} (${meals * each} dinners in total). Scale every quantity and pack count for all ${each * servings} serves. Choose dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps about 3 days in the fridge${each > 3 ? `, so say which nights' portions to freeze straight after cooking` : ", so say what to freeze if plans change"}.`
-      : `TASK: Plan exactly ${meals} different dinner${meals === 1 ? "" : "s"}, each serving ${servings}; each recipe has "nights": 1.`;
-    const rte = state.source === "rte";
+    const who = `${servings} ${servings === 1 ? "person" : "people"}`;
+    const task = (batch
+      ? `TASK: Suggest exactly ${count} different meal options; the household will pick ${meals} of them. Each option is cooked once in a big batch and eaten on ${each} nights in a row by ${who}, so every recipe has "nights": ${each} and "servings": ${each * servings}. Scale every quantity and pack count for all ${each * servings} serves. Only suggest dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps about 3 days in the fridge${each > 3 ? `, so say which nights' portions to freeze straight after cooking` : ", so say what to freeze if plans change"}.`
+      : `TASK: Suggest exactly ${count} different dinner options, each serving ${who}; the household will pick ${meals} of them. Each recipe has "nights": 1.`) +
+      ` Make the options genuinely different from each other (main protein, cuisine, cooking method) with a range of costs, and make each one stand on its own, because any combination might be picked.` +
+      (opts.exclude.length ? `\nThey have already seen these, so suggest different dishes: ${opts.exclude.join("; ")}.` : "");
+    const rte = opts.source === "rte";
     const sourceRule = rte
       ? `RECIPES: Choose every dish from recipes published on RecipeTin Eats (recipetineats.com, by Nagi Maehashi). Only pick recipes you are confident are on her site, and put the exact published recipe title in "rte_title" and her recipe's usual number of serves in "recipe_serves". Do NOT write out her method or copy her text: the page links people to her recipe to cook it. In "sale" and "other", list the ingredients her recipe uses, scaled to this recipe's "servings", so the page can cost it. Where a special can stand in for an ingredient in her recipe (e.g. chicken thighs on special instead of breast), use it and say so in "swaps". Write "description" in your own words.`
-      : `RECIPES: Write your own recipes, with a short method in "steps".`;
+      : `RECIPES: Write your own recipes, with a short method in "steps" (at most ${batch ? 8 : 6} steps).`;
     const recipeShape = rte
       ? `"title":"short dish name","rte_title":"exact title on RecipeTin Eats","recipe_serves":4,"description":"one sentence in your own words","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"swaps":["Uses the chicken thighs on special instead of breast"]`
       : `"title":"","description":"one sentence","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]`;
-    const prompt = `You are a practical home cook in Australia planning dinners around this week's supermarket specials.
+    const prompt = `You are a practical home cook in Australia suggesting dinners built around this week's supermarket specials.
 
 SPECIALS (only these count as "on special"; each has an id like #12, its category, price, any "was" price and price per kg or litre):
 ${lines}
@@ -669,46 +796,71 @@ ${lines}
 ${task}${minutes && style.id !== "quick" ? `\nEach ${batch ? "batch cook" : "dinner"} must take no more than ${minutes} minutes of hands-on cooking.` : ""}
 PLAN STYLE: ${style.prompt}${extras ? `\nALSO:\n${extras}` : ""}${prefs ? `\nHOUSEHOLD NOTES (these win over everything else): ${prefs}` : ""}
 ${sourceRule}
-Use ingredients that can be shared across dinners so nothing is wasted. Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
+Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
 
 COSTING (the page does the maths, so be precise with these numbers):
-- In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS recipe uses (a fraction is fine, e.g. 0.5 when the other half goes into another recipe).
+- In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS recipe uses (a fraction is fine, e.g. 0.5 of a 1kg pack for 500g).
 - "other" lists every non-special ingredient with "cost" = your AUD estimate for just the amount used, at typical Australian supermarket prices (pantry staples like oil, salt and spices cost cents).
-- "shopping" lists the whole packs of specials to buy for all the recipes together ("packs" is a whole number). For multibuy deals ("Buy 2 for..."), buy the deal quantity when it's worth it.
 
-Reply with only JSON in exactly this shape:
-{"recipes":[{${recipeShape}${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips"}
-${rte ? "" : `Keep each recipe to at most ${batch ? 10 : 8} steps.`}`;
-    return { prompt, chosen, servings, style: style.id, extras: [...state.extras], meals, each, source: state.source };
+Reply with only JSON in exactly this shape, with ${count} recipes:
+{"recipes":[{${recipeShape}${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"notes":"one or two short tips"}`;
+    return { prompt, chosen, servings, each, meals, count, style: style.id, extras: [...opts.extras], source: opts.source };
   }
 
-  $("planBtn").addEventListener("click", async () => {
+  function formSettings() {
+    const meals = stepVal("meals");
+    return { style: state.style, extras: [...state.extras], source: state.source, meals, each: stepVal("each"), servings: stepVal("servings"),
+             count: ideaCount(meals, state.source), exclude: [] };
+  }
+
+  $("planBtn").addEventListener("click", () => findIdeas(false));
+
+  async function findIdeas(more) {
     if (!state.sample || state.busy) return;
-    state.busy = true; updatePlanButton();
-    $("status").classList.remove("err"); $("status").textContent = "Claude is planning your dinners…";
+    const prev = more ? state.ideas : null;
+    const opts = prev
+      ? { style: prev.style, extras: prev.extras || [], source: prev.source || "rte", meals: prev.meals, each: prev.each || 1, servings: prev.servings || stepVal("servings"),
+          count: Math.min(8, Math.max(4, (prev.meals || 3) + 1)), exclude: prev.candidates.map((c) => c.rteTitle || c.title) }
+      : formSettings();
+    const status = more ? $("moreStatus") : $("status");
+    state.busy = true; updatePlanButton(); if ($("moreIdeas")) $("moreIdeas").disabled = true;
+    status.classList.remove("err"); status.textContent = more ? "Finding more ideas…" : "Claude is finding meal ideas…";
     try {
-      const ask = buildPrompt();
+      const ask = buildPrompt(opts);
       const raw = await state.sample.json(ask.prompt, {
         modelTier: "default", cache: false,
-        onText: ({ text }) => { $("status").textContent = text ? `Writing recipes… (${Math.round(text.length / 100) / 10}k characters)` : "Claude is thinking…"; },
+        onText: ({ text }) => { status.textContent = text ? `Writing ideas… (${Math.round(text.length / 100) / 10}k characters)` : "Claude is thinking…"; },
       });
       if (!raw || !Array.isArray(raw.recipes) || !raw.recipes.length) throw { code: "bad_shape", message: "The reply had no recipes." };
-      const plan = costPlan(raw, ask.chosen, ask.servings, ask.each, ask.source);
-      const saved = { plan, made: new Date().toISOString(), dealsUpdated: state.week?.updated || null, style: ask.style, extras: ask.extras };
-      renderPlan(saved);
-      $("status").textContent = "Done. Your plan is saved below.";
-      if (state.db) { try { await state.db.doc("plans/latest").set(saved); } catch { $("status").textContent = "Done. (Couldn't save the plan for next time.)"; } }
-      $("plan").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      const stamp = Date.now().toString(36);
+      const fresh = raw.recipes.map((r, i) => costRecipe(r, ask, `${stamp}-${i}`));
+      if (prev) {
+        prev.candidates = prev.candidates.concat(fresh);
+      } else {
+        state.ideas = { kind: "ideas", candidates: fresh, selected: [], made: new Date().toISOString(), dealsUpdated: state.week?.updated || null,
+                        style: ask.style, extras: ask.extras, source: ask.source, meals: ask.meals, each: ask.each, servings: ask.servings, notes: String(raw.notes || "") };
+      }
+      renderAll();
+      saveChain = saveChain.then(saveIdeas);
+      if (more) { $("moreStatus").textContent = `Added ${fresh.length} more ideas.`; }
+      else {
+        status.textContent = `${fresh.length} ideas ready. Pick the ones you like.`;
+        $("ideas").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      }
     } catch (e) {
-      $("status").classList.add("err");
+      const el = more && $("moreStatus") ? $("moreStatus") : status;
+      el.classList.add("err");
       const code = e && e.code;
-      $("status").textContent =
+      el.textContent =
         code === "not_granted" ? "Planning needs permission to ask Claude. Allow it from this page's permissions to try again." :
         code === "rate_limited" ? "You've hit your Claude usage limit for now. Try again later." :
-        code === "invalid_json" || code === "bad_shape" ? "Claude's answer came back incomplete. Press Plan my dinners to try again, or ask for fewer dinners." :
-        "Something went wrong while planning. Press Plan my dinners to try again.";
-    } finally { state.busy = false; updatePlanButton(); }
-  });
+        code === "invalid_json" || code === "bad_shape" ? "Claude's answer came back incomplete. Try again, or ask for fewer meals." :
+        "Something went wrong while finding ideas. Try again.";
+    } finally {
+      state.busy = false; updatePlanButton();
+      if ($("moreIdeas")) $("moreIdeas").disabled = !state.sample;
+    }
+  }
 
   /* ---------- fill the trolley with the Claude app's browser ---------- */
   // Claude drives the desktop app's built-in browser through the viewer's own consent.
@@ -829,7 +981,7 @@ RULES: Never open the trolley checkout, never enter payment or delivery details,
       if (snap.exists) showWeek(snap.data() || {});
       else $("meta").textContent = "No specials loaded yet. They're added each week.";
     }, () => { clearTimeout(timer); $("meta").textContent = "Couldn't load the specials. Reopen the page to try again."; });
-    db.doc("plans/latest").onSnapshot((snap) => { if (snap.exists && !state.busy) renderPlan(snap.data()); }, () => {});
+    db.doc("plans/latest").onSnapshot((snap) => { if (snap.exists && !state.busy) loadSaved(snap.data()); }, () => {});
   })();
 })();
 </script>
