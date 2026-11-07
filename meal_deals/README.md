@@ -79,7 +79,9 @@ Recipes come from RecipeTin Eats by default: Claude picks dishes from her site t
 the specials, and each meal links to a search for it on recipetineats.com. Her site's
 robots.txt opts out of Anthropic's crawlers, so nothing here fetches, indexes or copies her
 recipes; ingredient amounts used for costing are Claude's estimates. "Claude writes them"
-switches back to Claude's own recipes with the method on the page. Its "Plan my dinners"
+switches back to Claude's own recipes with the method on the page. The recipe button
+uses a DuckDuckGo "\\" (jump to first result) search limited to recipetineats.com, which
+lands on the recipe page itself; a second link searches her site instead. Its "Plan my dinners"
 button asks Claude directly from the page, so no API key is needed there. The latest
 plan is saved to `plans/latest`, so it shows on every device.
 

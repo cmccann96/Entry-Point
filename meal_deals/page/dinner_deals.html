@@ -335,7 +335,9 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     state.source = b.dataset.source; store.set("dd-source", state.source); renderSource();
   });
   renderSource();
-  const rteLink = (title) => "https://www.recipetineats.com/?s=" + encodeURIComponent(title);
+  // DuckDuckGo's "\" prefix jumps straight to the top result, so a site-limited search lands on the recipe page itself.
+  const rteLink = (title) => "https://duckduckgo.com/?q=" + encodeURIComponent("\\site:recipetineats.com " + title + " recipe");
+  const rteSearch = (title) => "https://www.recipetineats.com/?s=" + encodeURIComponent(title);
 
   function renderStyles() {
     $("styles").innerHTML = STYLES.map((s) => `<button type="button" role="radio" class="style" data-style="${s.id}" aria-checked="${s.id === state.style}">
@@ -572,7 +574,8 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
             <span class="price-row"><b>${money(r.total)}</b>${n > 1 ? ` · ${money(r.perNight || round2(r.total / n))} a night` : ""} · ${money(r.perServe)} a serve · <s>${money(r.fullTotal)}</s>${rs > 0 ? ` <span class="save-t">save ${pct(rs, r.fullTotal)}%</span>` : ""}</span></summary>
           <div class="body">
             ${r.source === "rte" ? `<div class="cook">
-              <a class="btn" href="${esc(rteLink(r.rteTitle || r.title))}" target="_blank" rel="noopener">Cook it with RecipeTin Eats ↗</a>
+              <a class="btn" href="${esc(rteLink(r.rteTitle || r.title))}" target="_blank" rel="noopener">Open the recipe on RecipeTin Eats ↗</a>
+              <a class="fine" href="${esc(rteSearch(r.rteTitle || r.title))}" target="_blank" rel="noopener">Not the right recipe? Search her site ↗</a>
               ${r.recipeServes ? `<p class="fine">${esc(r.rteTitle || r.title)} serves ${r.recipeServes}${r.servings && Math.abs(r.servings / r.recipeServes - 1) > 0.01 ? `, so make it ×${Math.round((r.servings / r.recipeServes) * 10) / 10} for ${r.servings} serves` : ""}.</p>` : ""}
               ${r.swaps.length ? `<div><h4>Swaps for the specials</h4><ul>${r.swaps.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
             </div>` : ""}
