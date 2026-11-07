@@ -246,9 +246,20 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
 .idea.picked { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand), var(--shadow-2); }
 .idea.enter { animation: cardIn .45s var(--ease) both; }
 @keyframes cardIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
-.art { position: relative; height: 104px; display: grid; place-items: center; color: #fff; overflow: hidden; }
+.art { position: relative; height: 150px; display: grid; place-items: center; color: #fff; overflow: hidden; }
 .art::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, .16) 1.5px, transparent 1.6px); background-size: 14px 14px; }
 .art > .ic { width: 56px; height: 56px; stroke-width: 1.4; position: relative; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .18)); }
+.art .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.04); transition: opacity .45s ease, transform .8s var(--ease); }
+.art .photo.loaded { opacity: 1; transform: none; }
+.art.has-photo::before { display: none; }
+.art.has-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, 0) 32%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .5) 100%); pointer-events: none; }
+.art.has-photo > .ic { display: none; }
+.art .badges, .art .pick-btn, .art .credit { z-index: 1; }
+.art .credit { position: absolute; right: 10px; bottom: 10px; max-width: 55%; color: #fff; font-size: .68rem; opacity: .85; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.credits { font-size: .82rem; color: var(--muted); }
+.credits summary { cursor: pointer; font-weight: 700; }
+.credits ul { margin: 8px 0 0; padding-left: 1.1em; display: grid; gap: 3px; }
+.credits a { color: var(--muted); }
 .art.chicken { background: var(--art-chicken); } .art.beef { background: var(--art-beef); } .art.pork { background: var(--art-pork); }
 .art.sea { background: var(--art-sea); } .art.eggs { background: var(--art-eggs); } .art.carbs { background: var(--art-carbs); }
 .art.veg { background: var(--art-veg); } .art.brand { background: var(--art-brand); }
@@ -416,7 +427,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
 .sheet .grab { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 40px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .7); z-index: 2; }
 .sheet .close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .3); color: #fff; display: grid; place-items: center; backdrop-filter: blur(6px); }
 .sheet-scroll { overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
-.sheet .art { height: 150px; }
+.sheet .art { height: 230px; }
 .sheet .art > .ic { width: 70px; height: 70px; }
 .sheet-body { padding: 18px var(--gutter-r) 8px var(--gutter-l); display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
 .sheet-body > * { min-width: 0; }
@@ -554,7 +565,8 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
       <h2 class="sec-label"><label for="prefs">Anything else</label></h2>
       <textarea id="prefs" placeholder="e.g. no pork, we already have rice and spices, someone hates mushrooms"></textarea>
     </div>
-    <p class="fine">Prices come from the supermarkets' websites and can differ in store. Costs and ingredient amounts are Claude's estimates. RecipeTin Eats recipes are by Nagi Maehashi: this app links to them on recipetineats.com and doesn't copy them.</p>
+    <p class="fine">Prices come from the supermarkets' websites and can differ in store. Costs and ingredient amounts are Claude's estimates. RecipeTin Eats recipes are by Nagi Maehashi: this app links to them on recipetineats.com and doesn't copy them. Meal photos show a similar dish, not the exact recipe.</p>
+    <details class="credits"><summary>Photo credits</summary><ul id="creditsList"></ul></details>
   </section>
 
   <!-- IDEAS -->
@@ -624,6 +636,47 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
   const ART_ICON = { chicken: "drumstick", beef: "steak", pork: "sausage", sea: "fish", eggs: "egg", carbs: "bowl", veg: "leaf", brand: "pot" };
   const LANE_LABEL = { chicken: "Chicken", beef: "Beef & lamb", pork: "Pork & sausages", seaveg: "Seafood & veg", sea: "Seafood", eggs: "Eggs & tofu", carbs: "Pasta & rice", veg: "Veg & legumes" };
   const LANE_ART = { chicken: "chicken", beef: "beef", pork: "pork", seaveg: "sea", sea: "sea", eggs: "eggs", carbs: "carbs", veg: "veg" };
+  // Openly licensed photos of similar dishes, bundled with the app (img/<key>.jpg). Each needs its credit shown.
+  const PHOTOS = {"butter-chicken":{"label":"Butter chicken","by":"mdid","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/58246614@N00/2951742240"},"tikka-masala":{"label":"Chicken tikka masala","by":"secretlondon123","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/25834786@N03/2895455410"},"green-curry":{"label":"Thai green curry","by":"WordRidden","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/97844767@N00/3814272817"},"red-curry":{"label":"Thai red curry","by":"spurekar","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/63324741@N04/49692016398"},"massaman":{"label":"Massaman curry","by":"jules:stonesoup","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/58367355@N00/8469202247"},"laksa":{"label":"Laksa","by":"Tiberiu Ana","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/44344020@N00/6998437416"},"roast-chicken":{"label":"Roast chicken","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/3170371586"},"schnitzel":{"label":"Chicken schnitzel","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/3855109265"},"drumsticks":{"label":"Baked chicken drumsticks","by":"Ruocaled","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/54063325@N07/13599513043"},"honey-chicken":{"label":"Honey garlic chicken","by":"jeffreyw","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7927684@N03/10890372824"},"chicken-stir-fry":{"label":"Chicken stir fry","by":"ginnerobot","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/78011127@N00/3168342551"},"satay":{"label":"Chicken satay","by":"stu_spivack","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/35034346243@N01/210635792"},"teriyaki":{"label":"Teriyaki chicken","by":"ayustety","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/25368895@N00/15568930"},"chicken-pasta":{"label":"Creamy chicken pasta","by":"theimpulsivebuy","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/27410581@N07/6443649125"},"ragu":{"label":"Beef ragu","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/3945602287"},"bolognese":{"label":"Spaghetti bolognese","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/2145112149"},"lasagne":{"label":"Lasagne","by":"plasticrevolver","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/31474531@N00/5413268570"},"chilli":{"label":"Chilli con carne","by":"cyclonebill","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/23178876@N03/2222710953"},"beef-stir-fry":{"label":"Beef stir fry","by":"Rusty Clark ~ 100K Photos","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/23206546@N04/7901252718"},"beef-stew":{"label":"Beef stew","by":"vauvau","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/98193606@N00/4311612078"},"steak":{"label":"Steak","by":"ultrakml","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/34948727@N00/12999503063"},"burger":{"label":"Burgers","by":"BurgerAustin","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/42022505@N03/5007282483"},"tacos":{"label":"Tacos","by":"mccun934","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/51035597937@N01/3991901694"},"meatballs":{"label":"Meatballs","by":"jeffreyw","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7927684@N03/14384813812"},"roast-lamb":{"label":"Roast lamb","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/815666421"},"lamb-chops":{"label":"Lamb chops","by":"ysksmz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/124697177@N05/15386096818"},"souvlaki":{"label":"Souvlaki","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/3464862583"},"kofta":{"label":"Kofta","by":"jules:stonesoup","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/58367355@N00/8092392576"},"cottage-pie":{"label":"Cottage pie","by":"WordRidden","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/97844767@N00/4897135759"},"sausages-mash":{"label":"Sausages and mash","by":"arvindgrover","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/60167034@N00/5222125925"},"sausage-casserole":{"label":"Sausage casserole","by":"Simon Wheatley","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/35034350173@N01/2337923425"},"pork-belly":{"label":"Pork belly","by":"opacity","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/60258967@N00/7082387133"},"pulled-pork":{"label":"Pulled pork","by":"ginnerobot","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/78011127@N00/3297309505"},"pork-chops":{"label":"Pork chops","by":"patrickkuhl","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/33398244@N00/13226310563"},"lettuce-cups":{"label":"San choy bow","by":"Stacy Spensley","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/21001756@N06/4070654377"},"fried-rice":{"label":"Fried rice","by":"fakelvis","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/40933543@N00/3177377867"},"pad-thai":{"label":"Pad thai","by":"NuCastiel","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/156097806@N07/38383939511"},"noodles":{"label":"Noodle stir fry","by":"pelican","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/85936780@N00/8224741637"},"pho":{"label":"Pho","by":"sermoa","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/89953410@N00/6813883816"},"salmon":{"label":"Salmon","by":"vmiramontes","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/33549343@N04/4566209370"},"fish-chips":{"label":"Fish and chips","by":"Smabs Sputzer (1956-2017)","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/10413717@N08/9355126330"},"fish-tacos":{"label":"Fish tacos","by":"ray_explores","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/66801522@N00/15737968131"},"garlic-prawns":{"label":"Garlic prawns","by":"jhegyessy","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/33805261@N00/7150038285"},"prawn-pasta":{"label":"Prawn pasta","by":"moonlightbulb","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/24532534@N02/15802855271"},"risotto":{"label":"Risotto","by":"SaucyGlo","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/67238971@N04/6703097183"},"carbonara":{"label":"Carbonara","by":"jeffreyw","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7927684@N03/13726596053"},"tomato-pasta":{"label":"Tomato pasta","by":"jeffreyw","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7927684@N03/14530170849"},"pasta-bake":{"label":"Pasta bake","by":"jeffreyw","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7927684@N03/5794654585"},"gnocchi":{"label":"Gnocchi","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/3241991271"},"frittata":{"label":"Frittata","by":"jeffreyw","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7927684@N03/5182567699"},"shakshuka":{"label":"Shakshuka","by":"adactio","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/74105777@N00/12149680454"},"tofu":{"label":"Tofu stir fry","by":"Augapfel","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/47038415@N00/216875127"},"dal":{"label":"Dal","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/3751603633"},"veg-soup":{"label":"Vegetable soup","by":"D.L.","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/35284396@N00/407366342"},"pumpkin-soup":{"label":"Pumpkin soup","by":"Qfamily","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/98545783@N00/2218090957"},"fajitas":{"label":"Fajitas","by":"megan.chromik","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/17796522@N08/3724256478"},"burrito-bowl":{"label":"Burrito bowl","by":"sarahstierch","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/7633518@N08/52493469421"},"nachos":{"label":"Nachos","by":"OctopusHat","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/67485853@N00/2434645546"},"quiche":{"label":"Quiche","by":"Katrin Gilger","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/26242865@N04/5737799388"},"pie":{"label":"Pie","by":"Bernt Rostad","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/67975030@N00/4100693256"},"pizza":{"label":"Pizza","by":"sonstroem","lic":"CC BY 2.0","licUrl":"https://creativecommons.org/licenses/by/2.0/","src":"https://www.flickr.com/photos/96964826@N05/14010702703"},"dumplings":{"label":"Dumplings","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/2299407445"},"salad":{"label":"Salad","by":"avlxyz","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/10559879@N00/2695730538"},"roast-veg":{"label":"Roast vegetables","by":"pdstahl","lic":"CC BY-SA 2.0","licUrl":"https://creativecommons.org/licenses/by-sa/2.0/","src":"https://www.flickr.com/photos/13083246@N03/4145260189"}};
+  const PHOTO_ALIAS = { "chicken-curry": "butter-chicken", "ramen": "pho", "curry": "butter-chicken", "soup": "veg-soup", "stir-fry": "chicken-stir-fry", "pasta": "tomato-pasta" };
+  // When Claude didn't pick a photo (or picked one we don't have), match on the dish name.
+  const PHOTO_RULES = [
+    [/cannelloni|ravioli|tortellini|manicotti/, "pasta-bake"], [/moussaka/, "lasagne"], [/stroganoff|goulash|bourguignon/, "beef-stew"],
+    [/biryani|pilaf|pilau|jambalaya|paella/, "fried-rice"], [/rissole|meatloaf/, "meatballs"], [/enchilada|quesadilla/, "fajitas"], [/bibimbap|poke|rice bowl/, "teriyaki"],
+    [/butter chicken/, "butter-chicken"], [/tikka/, "tikka-masala"], [/green curry/, "green-curry"], [/red curry|panang|penang/, "red-curry"],
+    [/massaman/, "massaman"], [/laksa/, "laksa"], [/satay/, "satay"], [/teriyaki/, "teriyaki"], [/schnitzel|parmigiana|parma\b/, "schnitzel"],
+    [/drumstick|wings/, "drumsticks"], [/(honey|sticky|glazed).*chicken|chicken.*(honey|sticky|glazed)/, "honey-chicken"],
+    [/roast chicken|whole chicken|rotisserie|roasted chicken/, "roast-chicken"], [/ragu/, "ragu"], [/bolognese/, "bolognese"], [/lasagn/, "lasagne"],
+    [/chilli|chili/, "chilli"], [/meatball/, "meatballs"], [/kofta/, "kofta"], [/souvlaki|gyros|kebab/, "souvlaki"],
+    [/cottage pie|shepherd/, "cottage-pie"], [/sausage.*mash|bangers/, "sausages-mash"], [/sausage/, "sausage-casserole"],
+    [/pork belly/, "pork-belly"], [/pulled pork|carnitas/, "pulled-pork"], [/pork (chop|steak|loin|cutlet)/, "pork-chops"],
+    [/san choy|lettuce (cup|wrap)/, "lettuce-cups"], [/fried rice|nasi goreng/, "fried-rice"], [/pad thai|pad see ew/, "pad-thai"],
+    [/ramen|pho\b|noodle soup/, "pho"], [/(prawn|shrimp).*(pasta|spaghetti|linguine|penne)|(pasta|spaghetti|linguine).*(prawn|shrimp)/, "prawn-pasta"],
+    [/(fish|prawn).*taco/, "fish-tacos"], [/taco/, "tacos"], [/prawn|shrimp/, "garlic-prawns"], [/salmon|trout/, "salmon"],
+    [/fish/, "fish-chips"], [/risotto/, "risotto"], [/carbonara/, "carbonara"], [/gnocchi/, "gnocchi"], [/pasta bake|baked pasta|mac.*cheese/, "pasta-bake"],
+    [/quiche/, "quiche"], [/frittata|omelette/, "frittata"], [/shakshuka|eggs in/, "shakshuka"], [/tofu/, "tofu"],
+    [/pumpkin soup/, "pumpkin-soup"], [/soup/, "veg-soup"], [/fajita/, "fajitas"], [/burrito/, "burrito-bowl"], [/nacho/, "nachos"],
+    [/pie\b/, "pie"], [/pizza/, "pizza"], [/dumpling|gyoza|wonton/, "dumplings"], [/salad/, "salad"], [/steak/, "steak"], [/burger/, "burger"],
+    [/lamb (chop|cutlet)|cutlets/, "lamb-chops"], [/lamb/, "roast-lamb"], [/(beef|lamb).*(stew|casserole|braise)|(stew|casserole|braise)/, "beef-stew"],
+    [/beef.*stir|stir.*beef|beef and broccoli/, "beef-stir-fry"], [/stir.?fry/, "chicken-stir-fry"], [/noodle|chow mein|lo mein|hokkien|udon/, "noodles"],
+    [/(dal|dhal|lentil)/, "dal"], [/chicken.*curry|curry.*chicken|korma/, "butter-chicken"], [/curry/, "massaman"],
+    [/chicken.*(pasta|penne|fettuccine)|(pasta|penne|fettuccine).*chicken/, "chicken-pasta"], [/pasta|spaghetti|penne|linguine|fettuccine|rigatoni/, "tomato-pasta"],
+    [/roast/, "roast-veg"], [/chicken/, "roast-chicken"], [/beef|mince/, "beef-stew"], [/pork/, "pork-chops"],
+  ];
+  const LANE_PHOTO = { chicken: "roast-chicken", beef: "beef-stew", pork: "pork-chops", seaveg: "salmon", sea: "salmon", eggs: "frittata", carbs: "tomato-pasta", veg: "roast-veg" };
+  function photoFor(c) {
+    const pick = PHOTO_ALIAS[c.photo] || c.photo;
+    if (pick && PHOTOS[pick]) return pick;
+    const t = `${c.rteTitle || ""} ${c.title || ""}`.toLowerCase();
+    for (const [re, key] of PHOTO_RULES) if (re.test(t)) return key;
+    return LANE_PHOTO[c.lane] || "";
+  }
+  const photoImg = (key, cls) => `<img class="photo${cls ? " " + cls : ""}" src="img/${key}.jpg" alt="" loading="lazy" decoding="async">`;
+  // Fade photos in once they arrive; if one fails, fall back to the drawn icon.
+  document.addEventListener("load", (e) => { if (e.target.classList && e.target.classList.contains("photo")) e.target.classList.add("loaded"); }, true);
+  document.addEventListener("error", (e) => { const t = e.target; if (t.classList && t.classList.contains("photo")) { t.closest(".has-photo")?.classList.remove("has-photo"); t.remove(); } }, true);
+  const markLoaded = (root) => root.querySelectorAll("img.photo").forEach((im) => { if (im.complete && im.naturalWidth) im.classList.add("loaded"); });
+
   // Which picture a dish gets: its name first, then the search it came from.
   function artKey(c) {
     const t = `${c.title} ${c.rteTitle || ""}`.toLowerCase();
@@ -866,7 +919,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     const otherCost = round2(other.reduce((a, o) => a + o.cost, 0));
     const total = round2(sale.reduce((a, s) => a + s.cost, 0) + otherCost);
     const fullTotal = round2(sale.reduce((a, s) => a + s.fullCost, 0) + otherCost);
-    return { key, lane: ask.lane || "", title: String(r.title || "Dinner"), description: String(r.description || ""), minutes: num(r.minutes), servings: serves,
+    return { key, lane: ask.lane || "", photo: String(r.photo || ""), title: String(r.title || "Dinner"), description: String(r.description || ""), minutes: num(r.minutes), servings: serves,
              nights: nightsCovered, ideas: (Array.isArray(r.ideas) ? r.ideas : []).map(String).slice(0, 7), storage: String(r.storage || ""),
              steps: (Array.isArray(r.steps) ? r.steps : []).map(String), sale, other, otherCost, total, fullTotal,
              source: ask.source === "rte" ? "rte" : "claude", rteTitle: String(r.rte_title || ""), recipeServes: num(r.recipe_serves),
@@ -951,9 +1004,9 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
   }
 
   function ideaCard(c, picked) {
-    const art = artKey(c), rs = round2(c.fullTotal - c.total), isNew = !state.seen.has(c.key);
+    const art = artKey(c), ph = photoFor(c), rs = round2(c.fullTotal - c.total), isNew = !state.seen.has(c.key);
     return `<article class="card idea${picked ? " picked" : ""}${isNew ? " enter" : ""}" data-open="${esc(c.key)}">
-      <div class="art ${art}">${icon(ART_ICON[art])}
+      <div class="art ${art}${ph ? " has-photo" : ""}">${ph ? photoImg(ph) : ""}${icon(ART_ICON[art])}
         <div class="badges">${c.source === "rte" ? `<span class="glass">${icon("book")}RecipeTin Eats</span>` : ""}${c.minutes ? `<span class="glass">${icon("clock")}${c.minutes} min</span>` : ""}</div>
         <button type="button" class="pick-btn" data-pick="${esc(c.key)}" aria-pressed="${picked}" aria-label="${picked ? "Remove" : "Pick"} ${esc(c.title)}">${icon(picked ? "check" : "plus")}</button>
       </div>
@@ -1069,7 +1122,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
       <div class="sec"><div class="sec-head"><h2 class="sec-label">Night by night</h2><button class="sec-link" type="button" data-go="ideas">Change meals ${icon("next", "sm")}</button></div>
         <div class="timeline">${recipes.map((r) => { const n = r.nights || 1, art = artKey(r); return `
           <div class="tl"><div class="day"><span class="${n > 1 ? "multi" : ""}">${label(n)}</span></div>
-            <button type="button" class="card meal" data-open="${esc(r.key)}"><span class="thumb art ${art}">${icon(ART_ICON[art])}</span>
+            <button type="button" class="card meal" data-open="${esc(r.key)}"><span class="thumb art ${art}${photoFor(r) ? " has-photo" : ""}">${photoFor(r) ? photoImg(photoFor(r)) : ""}${icon(ART_ICON[art])}</span>
               <span class="mt"><b>${esc(r.title)}</b><span>${[n > 1 ? `${n} nights` : "", `serves ${r.servings}`, r.minutes ? `${r.minutes} min` : ""].filter(Boolean).join(" · ")}</span>
                 <span class="mprice"><em>${money(r.total)}</em> · ${money(r.perServe)} a serve</span></span>${icon("next")}</button></div>`; }).join("")}</div></div>
       ${state.ideas.notes ? `<div class="card notes">${icon("chat")}<p>${esc(state.ideas.notes)}</p></div>` : ""}
@@ -1139,10 +1192,10 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
   /* ---------- meal sheet ---------- */
   let sheetReturn = null;
   function sheetHtml(c) {
-    const art = artKey(c), rs = round2(c.fullTotal - c.total), on = state.ideas.selected.includes(c.key), n = c.nights || 1;
+    const art = artKey(c), ph = photoFor(c), P = ph ? PHOTOS[ph] : null, rs = round2(c.fullTotal - c.total), on = state.ideas.selected.includes(c.key), n = c.nights || 1;
     const scale = c.recipeServes && c.servings && Math.abs(c.servings / c.recipeServes - 1) > 0.01 ? Math.round((c.servings / c.recipeServes) * 10) / 10 : 0;
     return `
-      <div class="art ${art}">${icon(ART_ICON[art])}<div class="badges">${c.source === "rte" ? `<span class="glass">${icon("book")}RecipeTin Eats</span>` : `<span class="glass">${icon("chat")}Claude's recipe</span>`}${n > 1 ? `<span class="glass">${icon("moon")}${n} nights</span>` : ""}</div></div>
+      <div class="art ${art}${ph ? " has-photo" : ""}">${ph ? photoImg(ph) : ""}${icon(ART_ICON[art])}${P ? `<a class="credit" href="${esc(P.src)}" target="_blank" rel="noopener">Similar dish · ${esc(P.by)} · ${esc(P.lic)}</a>` : ""}<div class="badges">${c.source === "rte" ? `<span class="glass">${icon("book")}RecipeTin Eats</span>` : `<span class="glass">${icon("chat")}Claude's recipe</span>`}${n > 1 ? `<span class="glass">${icon("moon")}${n} nights</span>` : ""}</div></div>
       <div class="sheet-body">
         <div style="display:grid;gap:6px"><h2 id="sheetTitle">${esc(c.title)}</h2><p class="lede">${esc(c.description)}</p></div>
         <div class="kv"><div><b>${money(c.total)}</b><span>${n > 1 ? `${money(c.perNight || round2(c.total / n))} a night` : "total"}</span></div><div><b>${money(c.perServe)}</b><span>a serve</span></div><div class="${rs > 0 ? "sv" : ""}"><b>${rs > 0 ? `-${pct(rs, c.fullTotal)}%` : "—"}</b><span>${rs > 0 ? `was ${money(c.fullTotal)}` : "no saving"}</span></div></div>
@@ -1164,7 +1217,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     const c = findIdea(key); if (!c) return;
     sheetReturn = from || document.activeElement;
     state.sheetKey = key;
-    $("sheetBody").innerHTML = sheetHtml(c); $("sheetBody").scrollTop = 0;
+    $("sheetBody").innerHTML = sheetHtml(c); $("sheetBody").scrollTop = 0; markLoaded($("sheetBody"));
     $("scrim").hidden = false; $("sheet").hidden = false;
     requestAnimationFrame(() => { $("scrim").classList.add("show"); $("sheet").classList.add("show"); });
     document.body.style.overflow = "hidden";
@@ -1257,7 +1310,7 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
     $("bList").hidden = !left; $("bList").textContent = String(left);
   }
 
-  function renderAll() { renderLoader(); renderIdeas(); renderWeek(); renderList(); renderTabs(); renderPickbar(); updateAppbar(); }
+  function renderAll() { renderLoader(); renderIdeas(); renderWeek(); renderList(); renderTabs(); renderPickbar(); updateAppbar(); markLoaded(document); }
 
   let toastTimer;
   function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600); }
@@ -1357,8 +1410,8 @@ textarea::placeholder, input::placeholder { color: var(--faint); }
       ? `RECIPES: Choose every dish from recipes published on RecipeTin Eats (recipetineats.com, by Nagi Maehashi). Only pick recipes you are confident are on her site, and put the exact published recipe title in "rte_title" and her recipe's usual number of serves in "recipe_serves". Do NOT write out her method or copy her text: the page links people to her recipe to cook it. In "sale" and "other", list the ingredients her recipe uses, scaled to this recipe's "servings", so the page can cost it. Where a special can stand in for an ingredient in her recipe (e.g. chicken thighs on special instead of breast), use it and say so in "swaps". Write "description" in your own words.`
       : `RECIPES: Write your own recipes, with a short method in "steps" (at most ${batch ? 8 : 6} steps).`;
     const recipeShape = rte
-      ? `"title":"short dish name","rte_title":"exact title on RecipeTin Eats","recipe_serves":4,"description":"one sentence in your own words","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"swaps":["Uses the chicken thighs on special instead of breast"]`
-      : `"title":"","description":"one sentence","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]`;
+      ? `"title":"short dish name","rte_title":"exact title on RecipeTin Eats","photo":"butter-chicken","recipe_serves":4,"description":"one sentence in your own words","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"swaps":["Uses the chicken thighs on special instead of breast"]`
+      : `"title":"","photo":"butter-chicken","description":"one sentence","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]`;
     const prompt = `You are a practical home cook in Australia suggesting dinners built around this week's supermarket specials.
 
 SPECIALS (only these count as "on special"; each has an id like #12, its category, price, any "was" price and price per kg or litre):
@@ -1368,6 +1421,7 @@ ${task}${minutes && style.id !== "quick" ? `\nEach ${batch ? "batch cook" : "din
 PLAN STYLE: ${style.prompt}${extras ? `\nALSO:\n${extras}` : ""}${prefs ? `\nHOUSEHOLD NOTES (these win over everything else): ${prefs}` : ""}
 ${sourceRule}
 Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
+PHOTO: set "photo" to the key of the closest-looking dish from this photo list (or "" if none is close): ${Object.keys(PHOTOS).join(", ")}.
 
 COSTING (the page does the maths, so be precise with these numbers):
 - In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS recipe uses (a fraction is fine, e.g. 0.5 of a 1kg pack for 500g).
@@ -1551,6 +1605,7 @@ RULES: Never open the trolley checkout, never enter payment or delivery details,
   $("fillStop").addEventListener("click", () => state.fillAbort && state.fillAbort.abort());
 
   /* ---------- start ---------- */
+  $("creditsList").innerHTML = Object.values(PHOTOS).map((P) => `<li><a href="${esc(P.src)}" target="_blank" rel="noopener">${esc(P.label)}</a> by ${esc(P.by)}, ${P.licUrl ? `<a href="${esc(P.licUrl)}" target="_blank" rel="noopener">${esc(P.lic)}</a>` : esc(P.lic)}, cropped and resized.</li>`).join("");
   renderStyles(); renderExtras(); renderSource(); renderMinutes(); renderCoverage(); renderDeals();
   setView(location.hash.slice(1) || "plan");
   renderAll();

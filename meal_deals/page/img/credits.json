@@ -1,0 +1,514 @@
+{
+ "butter-chicken": {
+  "label": "Butter chicken",
+  "creator": "mdid",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/58246614@N00/2951742240",
+  "title": "Butter Chicken Curry"
+ },
+ "tikka-masala": {
+  "label": "Chicken tikka masala",
+  "creator": "secretlondon123",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/25834786@N03/2895455410",
+  "title": "Chicken tikka masala"
+ },
+ "green-curry": {
+  "label": "Thai green curry",
+  "creator": "WordRidden",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/97844767@N00/3814272817",
+  "title": "Thai green curry with prawns"
+ },
+ "red-curry": {
+  "label": "Thai red curry",
+  "creator": "spurekar",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/63324741@N04/49692016398",
+  "title": "Thai red curry"
+ },
+ "massaman": {
+  "label": "Massaman curry",
+  "creator": "jules:stonesoup",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/58367355@N00/8469202247",
+  "title": "10-minute massaman curry-3"
+ },
+ "laksa": {
+  "label": "Laksa",
+  "creator": "Tiberiu Ana",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/44344020@N00/6998437416",
+  "title": "Claypot Laksa"
+ },
+ "roast-chicken": {
+  "label": "Roast chicken",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/3170371586",
+  "title": "Woolworths Roast Chicken Dinner"
+ },
+ "schnitzel": {
+  "label": "Chicken schnitzel",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/3855109265",
+  "title": "Chicken Schnitzel and Chips with Jaeger Gravy - River Inn includes drink for AUD15 with voucher"
+ },
+ "drumsticks": {
+  "label": "Baked chicken drumsticks",
+  "creator": "Ruocaled",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/54063325@N07/13599513043",
+  "title": "Oven baked Turkey Drumstick/Leg"
+ },
+ "honey-chicken": {
+  "label": "Honey garlic chicken",
+  "creator": "jeffreyw",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7927684@N03/10890372824",
+  "title": "Mmm... baked wings with a soy/honey glaze"
+ },
+ "chicken-stir-fry": {
+  "label": "Chicken stir fry",
+  "creator": "ginnerobot",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/78011127@N00/3168342551",
+  "title": "ginger chicken"
+ },
+ "satay": {
+  "label": "Chicken satay",
+  "creator": "stu_spivack",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/35034346243@N01/210635792",
+  "title": "chicken satay"
+ },
+ "teriyaki": {
+  "label": "Teriyaki chicken",
+  "creator": "ayustety",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/25368895@N00/15568930",
+  "title": "Kiji Don (Teriyaki Chicken & Rice Bowl)"
+ },
+ "chicken-pasta": {
+  "label": "Creamy chicken pasta",
+  "creator": "theimpulsivebuy",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/27410581@N07/6443649125",
+  "title": "T.G.I. Friday's Creamy Chicken Pasta Carbonara Closeup"
+ },
+ "ragu": {
+  "label": "Beef ragu",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/3945602287",
+  "title": "Osso Bucco with Pappardelle - Jones the Grocer AUD15"
+ },
+ "bolognese": {
+  "label": "Spaghetti bolognese",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/2145112149",
+  "title": "Spaghetti Bolognese - Michaelangelo, Aspendale Gardens"
+ },
+ "lasagne": {
+  "label": "Lasagne",
+  "creator": "plasticrevolver",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/31474531@N00/5413268570",
+  "title": "lasagna"
+ },
+ "chilli": {
+  "label": "Chilli con carne",
+  "creator": "cyclonebill",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/23178876@N03/2222710953",
+  "title": "Chili con carne"
+ },
+ "beef-stir-fry": {
+  "label": "Beef stir fry",
+  "creator": "Rusty Clark ~ 100K Photos",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/23206546@N04/7901252718",
+  "title": "beef n broccoli"
+ },
+ "beef-stew": {
+  "label": "Beef stew",
+  "creator": "vauvau",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/98193606@N00/4311612078",
+  "title": "Beef stew with small potato dumplings and carrots"
+ },
+ "steak": {
+  "label": "Steak",
+  "creator": "ultrakml",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/34948727@N00/12999503063",
+  "title": "Beef steak dinner special at Temperance Hotel in South Yarra"
+ },
+ "burger": {
+  "label": "Burgers",
+  "creator": "BurgerAustin",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/42022505@N03/5007282483",
+  "title": "Nau's Enfield Drug - Large Bacon Cheeseburger"
+ },
+ "tacos": {
+  "label": "Tacos",
+  "creator": "mccun934",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/51035597937@N01/3991901694",
+  "title": "Cola shredded beef tacos"
+ },
+ "meatballs": {
+  "label": "Meatballs",
+  "creator": "jeffreyw",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7927684@N03/14384813812",
+  "title": "Mmm... spaghetti with meatballs"
+ },
+ "roast-lamb": {
+  "label": "Roast lamb",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/815666421",
+  "title": "Christina's Rosemary Roast Lamb and Pumpkin"
+ },
+ "lamb-chops": {
+  "label": "Lamb chops",
+  "creator": "ysksmz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/124697177@N05/15386096818",
+  "title": "Lamb chop"
+ },
+ "souvlaki": {
+  "label": "Souvlaki",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/3464862583",
+  "title": "Lamb giros in pita - Medallion Souvlaki and Cakes AUD9.50"
+ },
+ "kofta": {
+  "label": "Kofta",
+  "creator": "jules:stonesoup",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/58367355@N00/8092392576",
+  "title": "grilled kofta kebabs"
+ },
+ "cottage-pie": {
+  "label": "Cottage pie",
+  "creator": "WordRidden",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/97844767@N00/4897135759",
+  "title": "365.223: Shepherd's pie"
+ },
+ "sausages-mash": {
+  "label": "Sausages and mash",
+  "creator": "arvindgrover",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/60167034@N00/5222125925",
+  "title": "vegetarian bangers and mash"
+ },
+ "sausage-casserole": {
+  "label": "Sausage casserole",
+  "creator": "Simon Wheatley",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/35034350173@N01/2337923425",
+  "title": "Slow Cooker Wild Boar Sausage Casserole"
+ },
+ "pork-belly": {
+  "label": "Pork belly",
+  "creator": "opacity",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/60258967@N00/7082387133",
+  "title": "Peninsula Hotel - crispy pork belly, schupf nudel, sauerkraut"
+ },
+ "pulled-pork": {
+  "label": "Pulled pork",
+  "creator": "ginnerobot",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/78011127@N00/3297309505",
+  "title": "pulled pork"
+ },
+ "pork-chops": {
+  "label": "Pork chops",
+  "creator": "patrickkuhl",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/33398244@N00/13226310563",
+  "title": "Pork-chops and Pepper Kebabs"
+ },
+ "lettuce-cups": {
+  "label": "San choy bow",
+  "creator": "Stacy Spensley",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/21001756@N06/4070654377",
+  "title": "vegetarian tempeh lettuce wraps"
+ },
+ "fried-rice": {
+  "label": "Fried rice",
+  "creator": "fakelvis",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/40933543@N00/3177377867",
+  "title": "Egg Fried Rice"
+ },
+ "pad-thai": {
+  "label": "Pad thai",
+  "creator": "NuCastiel",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/156097806@N07/38383939511",
+  "title": "ผัดไทยกุ้งสด - Pad Thai"
+ },
+ "noodles": {
+  "label": "Noodle stir fry",
+  "creator": "pelican",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/85936780@N00/8224741637",
+  "title": "Stir-fried noodle"
+ },
+ "pho": {
+  "label": "Pho",
+  "creator": "sermoa",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/89953410@N00/6813883816",
+  "title": "Pho noodle soup"
+ },
+ "salmon": {
+  "label": "Salmon",
+  "creator": "vmiramontes",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/33549343@N04/4566209370",
+  "title": "Brown Sugar and Lemon Glazed Salmon 041410W"
+ },
+ "fish-chips": {
+  "label": "Fish and chips",
+  "creator": "Smabs Sputzer (1956-2017)",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/10413717@N08/9355126330",
+  "title": "Fish And Chips"
+ },
+ "fish-tacos": {
+  "label": "Fish tacos",
+  "creator": "ray_explores",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/66801522@N00/15737968131",
+  "title": "Fish Tacos, Zocalos #mexican #food"
+ },
+ "garlic-prawns": {
+  "label": "Garlic prawns",
+  "creator": "jhegyessy",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/33805261@N00/7150038285",
+  "title": "Garlic Shrimp with steamed broccolini."
+ },
+ "prawn-pasta": {
+  "label": "Prawn pasta",
+  "creator": "moonlightbulb",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/24532534@N02/15802855271",
+  "title": "Shrimp pasta"
+ },
+ "risotto": {
+  "label": "Risotto",
+  "creator": "SaucyGlo",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/67238971@N04/6703097183",
+  "title": "Wild mushroom risotto with Greek oregano & Parmigiano cheese"
+ },
+ "carbonara": {
+  "label": "Carbonara",
+  "creator": "jeffreyw",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7927684@N03/13726596053",
+  "title": "Mmm... spaghetti carbonara"
+ },
+ "tomato-pasta": {
+  "label": "Tomato pasta",
+  "creator": "jeffreyw",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7927684@N03/14530170849",
+  "title": "Mmm... cherry tomatoes on pasta"
+ },
+ "pasta-bake": {
+  "label": "Pasta bake",
+  "creator": "jeffreyw",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7927684@N03/5794654585",
+  "title": "Mmm... baked pasta"
+ },
+ "gnocchi": {
+  "label": "Gnocchi",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/3241991271",
+  "title": "Gnocchi Napoli oven-baked with Mozzarella - Solarino AUD18.90"
+ },
+ "frittata": {
+  "label": "Frittata",
+  "creator": "jeffreyw",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7927684@N03/5182567699",
+  "title": "Mmm...spinach feta frittata"
+ },
+ "shakshuka": {
+  "label": "Shakshuka",
+  "creator": "adactio",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/74105777@N00/12149680454",
+  "title": "Shakshuka"
+ },
+ "tofu": {
+  "label": "Tofu stir fry",
+  "creator": "Augapfel",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/47038415@N00/216875127",
+  "title": "青椒豆腐干 Green Pepper and Tofu Stir Fry"
+ },
+ "dal": {
+  "label": "Dal",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/3751603633",
+  "title": "Palak Paneer AUD14.90, Butter Chicken AUD17.90, Dal Makhani AUD12.90 Bombay Beat"
+ },
+ "veg-soup": {
+  "label": "Vegetable soup",
+  "creator": "D.L.",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/35284396@N00/407366342",
+  "title": "vegetable soup"
+ },
+ "pumpkin-soup": {
+  "label": "Pumpkin soup",
+  "creator": "Qfamily",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/98545783@N00/2218090957",
+  "title": "Pumpkin soup"
+ },
+ "fajitas": {
+  "label": "Fajitas",
+  "creator": "megan.chromik",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/17796522@N08/3724256478",
+  "title": "Steak Fajita with Peppers"
+ },
+ "burrito-bowl": {
+  "label": "Burrito bowl",
+  "creator": "sarahstierch",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/7633518@N08/52493469421",
+  "title": "Burrito bowl"
+ },
+ "nachos": {
+  "label": "Nachos",
+  "creator": "OctopusHat",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/67485853@N00/2434645546",
+  "title": "Nachos!"
+ },
+ "quiche": {
+  "label": "Quiche",
+  "creator": "Katrin Gilger",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/26242865@N04/5737799388",
+  "title": "Spagetti-Quiche"
+ },
+ "pie": {
+  "label": "Pie",
+  "creator": "Bernt Rostad",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/67975030@N00/4100693256",
+  "title": "Meat Pie"
+ },
+ "pizza": {
+  "label": "Pizza",
+  "creator": "sonstroem",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0/",
+  "source": "https://www.flickr.com/photos/96964826@N05/14010702703",
+  "title": "Homemade pizza"
+ },
+ "dumplings": {
+  "label": "Dumplings",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/2299407445",
+  "title": "Lamb and Carrot Dumplings - Original Taste - Alpha"
+ },
+ "salad": {
+  "label": "Salad",
+  "creator": "avlxyz",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/10559879@N00/2695730538",
+  "title": "Mixed Bean, Beetroot, and Roasted Potato Salad - Salad Bowl - Soulmama Vegetarian"
+ },
+ "roast-veg": {
+  "label": "Roast vegetables",
+  "creator": "pdstahl",
+  "license": "CC BY-SA 2.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source": "https://www.flickr.com/photos/13083246@N03/4145260189",
+  "title": "Roasted Vegetables"
+ }
+}
