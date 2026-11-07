@@ -114,3 +114,16 @@ def test_prompt_ranks_biggest_discount_first():
     prompt = build_prompt(items, 3, 2, None, 30)
     assert prompt.index("Big") < prompt.index("Small")
     assert "no more than 30 minutes" in prompt
+
+
+def test_export_filters_junk_and_categorises():
+    from meal_deals.export_page import build_doc
+    items = [
+        SaleItem("Coles", "Whiskas Wet Cat Food With Beef Mince", 2.0, 3.0, search_term="beef mince"),
+        SaleItem("Coles", "Coles Beef Regular Mince", 7.0, 9.0, search_term="beef mince"),
+        SaleItem("Coles", "Birds Eye Crinkle Cut Frozen Potato Chips", 4.9, 6.2, search_term="potatoes"),
+        SaleItem("Coles", "Black Swan French Onion Dip", 3.5, 5.0, search_term="onions"),
+    ]
+    doc = build_doc(items)
+    assert [r["n"] for r in doc["items"]] == ["Coles Beef Regular Mince", "Birds Eye Crinkle Cut Frozen Potato Chips"]
+    assert doc["items"][0]["c"] == "Meat & seafood" and doc["items"][1]["c"] == "Fruit & veg"

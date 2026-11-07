@@ -1,0 +1,332 @@
+<title>Dinner Deals</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: one narrow column like a printed specials catalogue; planner first, shelf of price tickets below. */
+:root {
+  --bg: #f3f5f1;
+  --surface: #ffffff;
+  --ink: #18261f;
+  --muted: #5b6b62;
+  --line: #d9e0da;
+  --brand: #1f5b3f;          /* basil green */
+  --brand-ink: #ffffff;
+  --ticket: #ffd23f;         /* shelf-ticket yellow */
+  --ticket-ink: #1d1a0b;
+  --save: #b3261e;           /* "save" red on tickets */
+  --chip: #e6ece7;
+  --focus: #2f7dd1;
+  --f-display: "Archivo", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101713; --surface: #18221c; --ink: #e8efe9; --muted: #9db0a4; --line: #2b3a31;
+    --brand: #6cc497; --brand-ink: #0d1a13; --ticket: #f2c933; --ticket-ink: #1d1a0b;
+    --save: #ff8a80; --chip: #233029; --focus: #7ab8ff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101713; --surface: #18221c; --ink: #e8efe9; --muted: #9db0a4; --line: #2b3a31;
+  --brand: #6cc497; --brand-ink: #0d1a13; --ticket: #f2c933; --ticket-ink: #1d1a0b;
+  --save: #ff8a80; --chip: #233029; --focus: #7ab8ff; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 680px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+a { color: var(--brand); }
+
+/* Masthead */
+.mast { display: grid; gap: 6px; }
+.mast h1 { font-size: clamp(2.2rem, 9vw, 3.2rem); font-weight: 900; font-stretch: 75%; line-height: .95; letter-spacing: -.01em; text-transform: uppercase; }
+.mast h1 span { background: var(--ticket); color: var(--ticket-ink); padding: 0 .12em; }
+.meta { color: var(--muted); font-size: .9rem; }
+
+/* Planner */
+.planner { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 16px; }
+.planner h2 { font-size: 1.35rem; font-weight: 800; }
+.row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .row { grid-template-columns: 1fr 1fr; } .row .field:last-child { grid-column: 1 / -1; } }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stepper button { width: 40px; height: 42px; border: 0; background: var(--chip); font-size: 1.2rem; cursor: pointer; }
+.stepper output { flex: 1; text-align: center; font-family: var(--f-display); font-weight: 800; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+select, textarea, input[type="search"] { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 9px 10px; min-height: 42px; }
+textarea { resize: vertical; min-height: 64px; }
+.go { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn { background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 8px; padding: 12px 20px; font-family: var(--f-display); font-weight: 800; font-size: 1.05rem; letter-spacing: .02em; cursor: pointer; }
+.btn[disabled] { opacity: .55; cursor: progress; }
+.btn.ghost { background: transparent; color: var(--brand); border: 1px solid var(--line); padding: 10px 14px; font-size: .95rem; }
+.status { color: var(--muted); font-size: .9rem; min-width: 0; }
+.status.err { color: var(--save); }
+
+/* Plan output */
+.plan { display: grid; gap: 14px; }
+.plan-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.plan-head h2 { font-size: 1.5rem; font-weight: 900; font-stretch: 85%; }
+.totals { font-family: var(--f-display); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
+details.recipe { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+details.recipe summary { list-style: none; cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 12px; align-items: start; }
+details.recipe summary::-webkit-details-marker { display: none; }
+.night { font-family: var(--f-display); font-weight: 900; font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; background: var(--brand); color: var(--brand-ink); border-radius: 4px; padding: 3px 7px; margin-top: 3px; }
+.recipe h3 { font-size: 1.15rem; font-weight: 800; }
+.recipe .sub { grid-column: 2; color: var(--muted); font-size: .9rem; }
+.recipe .body { padding: 0 16px 16px; display: grid; gap: 12px; }
+.recipe h4 { margin: 0; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.recipe ul, .recipe ol { margin: 4px 0 0; padding-left: 1.2em; }
+.recipe li + li { margin-top: 4px; }
+.onsale { background: var(--ticket); color: var(--ticket-ink); font-weight: 700; font-size: .78rem; padding: 0 5px; border-radius: 3px; white-space: nowrap; }
+.shop { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; }
+.shop h3 { font-size: 1.1rem; }
+.shop label { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; }
+.shop input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--brand); flex: none; }
+.shop input:checked + span { text-decoration: line-through; color: var(--muted); }
+.notes { color: var(--muted); font-size: .95rem; }
+
+/* Specials shelf */
+.shelf { display: grid; gap: 12px; }
+.shelf-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.shelf-head h2 { font-size: 1.35rem; font-weight: 800; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chips button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: .88rem; cursor: pointer; }
+.chips button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.list { display: grid; gap: 8px; }
+.deal { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 8px 8px; }
+.tag { background: var(--ticket); color: var(--ticket-ink); border-radius: 4px; padding: 6px 8px; text-align: center; font-family: var(--f-display); font-variant-numeric: tabular-nums; position: relative; }
+.tag .now { font-size: 1.35rem; font-weight: 900; font-stretch: 80%; line-height: 1; }
+.tag .was { font-size: .72rem; font-weight: 600; text-decoration: line-through; opacity: .75; }
+.tag .off { font-size: .7rem; font-weight: 900; color: #fff; background: var(--save); border-radius: 3px; padding: 0 4px; display: inline-block; margin-top: 2px; }
+.deal .name { font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.deal .name a { color: inherit; text-decoration: none; }
+.deal .name a:hover { text-decoration: underline; }
+.deal .info { color: var(--muted); font-size: .84rem; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 20px; color: var(--muted); }
+.more { justify-self: center; }
+.foot { color: var(--muted); font-size: .8rem; }
+@media (prefers-reduced-motion: no-preference) { details.recipe[open] .body { animation: fade .2s ease-out; } @keyframes fade { from { opacity: .3 } to { opacity: 1 } } }
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <h1>Dinner <span>Deals</span></h1>
+    <div class="meta" id="meta">Loading this week's specials…</div>
+  </header>
+
+  <section class="planner" aria-labelledby="plan-title">
+    <h2 id="plan-title">Plan dinners from this week's specials</h2>
+    <div class="row">
+      <div class="field">
+        <label for="dinners">Dinners</label>
+        <div class="stepper"><button type="button" data-step="dinners" data-d="-1" aria-label="Fewer dinners">−</button><output id="dinners">5</output><button type="button" data-step="dinners" data-d="1" aria-label="More dinners">+</button></div>
+      </div>
+      <div class="field">
+        <label for="servings">Serves</label>
+        <div class="stepper"><button type="button" data-step="servings" data-d="-1" aria-label="Fewer people">−</button><output id="servings">4</output><button type="button" data-step="servings" data-d="1" aria-label="More people">+</button></div>
+      </div>
+      <div class="field">
+        <label for="minutes">Time per dinner</label>
+        <select id="minutes">
+          <option value="">Any</option>
+          <option value="30">30 min or less</option>
+          <option value="45" selected>45 min or less</option>
+          <option value="60">1 hour or less</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="prefs">Likes, dislikes, dietary needs</label>
+      <textarea id="prefs" placeholder="e.g. no pork, kid friendly, one vegetarian night, we have rice and spices at home"></textarea>
+    </div>
+    <div class="go">
+      <button class="btn" id="planBtn" type="button" disabled>Plan my dinners</button>
+      <span class="status" id="status" role="status"></span>
+    </div>
+  </section>
+
+  <section class="plan" id="plan" hidden aria-live="polite"></section>
+
+  <section class="shelf" aria-labelledby="shelf-title">
+    <div class="shelf-head">
+      <h2 id="shelf-title">On special</h2>
+      <span class="meta" id="shelfCount"></span>
+    </div>
+    <input type="search" id="q" placeholder="Search specials (e.g. salmon, mince, pasta)" aria-label="Search specials">
+    <div class="chips" id="chips" role="group" aria-label="Filter by category"></div>
+    <div class="list" id="list">
+      <div class="empty">This week's specials will appear here once they've been loaded. They refresh every week.</div>
+    </div>
+    <button class="btn ghost more" id="more" type="button" hidden>Show more</button>
+  </section>
+
+  <p class="foot">Prices come from the supermarkets' websites and can differ in store. Recipes and costs are Claude's estimates.</p>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const money = (n) => (typeof n === "number" && isFinite(n) ? "$" + n.toFixed(2) : "");
+  const pctOff = (r) => (r.w && r.w > r.p ? Math.round((100 * (r.w - r.p)) / r.w) : 0);
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+  const CAT_ORDER = ["All", "Meat & seafood", "Fruit & veg", "Dairy, eggs & tofu", "Pantry"];
+  const state = { week: null, items: [], cat: "All", q: "", shown: 30, plan: null, db: null, sample: null, busy: false };
+
+  /* ---------- stepper ---------- */
+  const limits = { dinners: [1, 7], servings: [1, 8] };
+  document.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => {
+    const id = b.dataset.step, out = $(id), [lo, hi] = limits[id];
+    out.value = out.textContent = String(Math.min(hi, Math.max(lo, Number(out.textContent) + Number(b.dataset.d))));
+  }));
+  const savedPrefs = store.get("dd-prefs"); if (savedPrefs) $("prefs").value = savedPrefs;
+  $("prefs").addEventListener("change", () => store.set("dd-prefs", $("prefs").value));
+
+  /* ---------- specials shelf ---------- */
+  function renderChips() {
+    const counts = {}; state.items.forEach((r) => (counts[r.c] = (counts[r.c] || 0) + 1));
+    const cats = CAT_ORDER.filter((c) => c === "All" || counts[c]).concat(Object.keys(counts).filter((c) => !CAT_ORDER.includes(c)));
+    $("chips").innerHTML = cats.map((c) => `<button type="button" data-cat="${esc(c)}" aria-pressed="${c === state.cat}">${esc(c)}${c === "All" ? "" : ` <span aria-hidden="true">${counts[c]}</span>`}</button>`).join("");
+  }
+  $("chips").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-cat]"); if (!b) return;
+    state.cat = b.dataset.cat; state.shown = 30; renderChips(); renderList();
+  });
+  let qTimer; $("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.q = $("q").value.trim().toLowerCase(); state.shown = 30; renderList(); }, 150); });
+  $("more").addEventListener("click", () => { state.shown += 40; renderList(); });
+
+  function renderList() {
+    if (!state.items.length) return;
+    const words = state.q.split(/\s+/).filter(Boolean);
+    const rows = state.items.filter((r) => (state.cat === "All" || r.c === state.cat) && words.every((w) => r.n.toLowerCase().includes(w)));
+    $("shelfCount").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"}`;
+    $("list").innerHTML = rows.length ? rows.slice(0, state.shown).map((r) => {
+      const off = pctOff(r);
+      return `<article class="deal">
+        <div class="tag"><div class="now">${money(r.p)}</div>${r.w ? `<div class="was">${money(r.w)}</div>` : ""}${off ? `<div class="off">${off}% OFF</div>` : ""}</div>
+        <div><div class="name">${r.u ? `<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.n)}</a>` : esc(r.n)}</div>
+        <div class="info">${esc(r.s)}${r.z ? " · " + esc(r.z) : ""}${r.o ? " · " + esc(r.o) : ""}</div></div>
+      </article>`;
+    }).join("") : `<div class="empty">No specials match “${esc(state.q)}”. Try another word or category.</div>`;
+    $("more").hidden = rows.length <= state.shown;
+  }
+
+  function showWeek(doc) {
+    state.week = doc; state.items = Array.isArray(doc.items) ? doc.items.filter((r) => r && typeof r.n === "string" && typeof r.p === "number") : [];
+    const when = doc.updated ? new Date(doc.updated).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) : "recently";
+    $("meta").textContent = `${state.items.length} dinner specials from ${(doc.stores || []).join(" & ") || "the supermarkets"} · updated ${when}`;
+    renderChips(); renderList(); updatePlanButton();
+  }
+
+  /* ---------- plan rendering ---------- */
+  const nights = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  function renderPlan(saved) {
+    const p = saved && saved.plan; if (!p || !Array.isArray(p.recipes)) { $("plan").hidden = true; return; }
+    const key = "dd-ticks-" + (saved.made || "");
+    let ticks = {}; try { ticks = JSON.parse(store.get(key) || "{}"); } catch {}
+    const total = p.recipes.reduce((a, r) => a + (Number(r.cost) || 0), 0);
+    const saving = p.recipes.reduce((a, r) => a + (Number(r.savings) || 0), 0);
+    const made = saved.made ? new Date(saved.made).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "";
+    const lists = Object.entries(p.shopping || {}).filter(([, v]) => Array.isArray(v) && v.length);
+    $("plan").innerHTML = `
+      <div class="plan-head"><h2>This week's dinners</h2>
+        <span class="totals">${total ? `about ${money(total)} total` : ""}${saving ? ` · saving ~${money(saving)}` : ""}${made ? ` · planned ${made}` : ""}</span></div>
+      ${p.recipes.map((r, i) => `
+        <details class="recipe"${i === 0 ? " open" : ""}>
+          <summary><span class="night">${nights[i] || "Day " + (i + 1)}</span><h3>${esc(r.title)}</h3>
+            <span class="sub">${esc(r.description || "")}<br>${[r.minutes ? r.minutes + " min" : "", r.servings ? "serves " + r.servings : "", r.cost ? "about " + money(Number(r.cost)) : ""].filter(Boolean).join(" · ")}</span></summary>
+          <div class="body">
+            <div><h4>On special</h4><ul>${(r.sale || []).map((s) => `<li>${esc(s.qty || "")} ${esc(s.item)} <span class="onsale">${esc(s.store || "")} ${money(Number(s.price))}</span></li>`).join("")}</ul></div>
+            <div><h4>You'll also need</h4><ul>${(r.other || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>
+            <div><h4>Method</h4><ol>${(r.steps || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>
+          </div>
+        </details>`).join("")}
+      ${lists.length ? `<div class="shop"><h3>Shopping list</h3>${lists.map(([st, items]) => `<div><h4 style="margin:0;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">${esc(st)}</h4>${items.map((it, j) => { const id = `${st}-${j}`; return `<label><input type="checkbox" id="tick-${esc(id)}" data-tick="${esc(id)}"${ticks[id] ? " checked" : ""}><span>${esc(it)}</span></label>`; }).join("")}</div>`).join("")}</div>` : ""}
+      ${p.notes ? `<p class="notes">${esc(p.notes)}</p>` : ""}`;
+    $("plan").hidden = false;
+    $("plan").querySelectorAll("[data-tick]").forEach((cb) => cb.addEventListener("change", () => { ticks[cb.dataset.tick] = cb.checked; store.set(key, JSON.stringify(ticks)); }));
+  }
+
+  /* ---------- asking Claude ---------- */
+  function updatePlanButton() {
+    const ok = state.sample && state.items.length && !state.busy;
+    $("planBtn").disabled = !ok;
+    if (!state.busy && !state.sample && state.items.length) $("status").textContent = "Open this page in the Claude app or claude.ai, signed in, to plan dinners.";
+  }
+
+  function buildPrompt() {
+    const rank = { "Meat & seafood": 0, "Fruit & veg": 1, "Dairy, eggs & tofu": 2, "Pantry": 3 };
+    const pick = [...state.items].sort((a, b) => (rank[a.c] ?? 4) - (rank[b.c] ?? 4) || pctOff(b) - pctOff(a));
+    const byCat = {}; const chosen = [];
+    for (const r of pick) { const n = (byCat[r.c] = (byCat[r.c] || 0) + 1); if (n <= (r.c === "Meat & seafood" ? 90 : 50)) chosen.push(r); }
+    const lines = chosen.map((r) => `- [${r.s}] ${r.n}${r.z ? ` (${r.z})` : ""} ${money(r.p)}${r.w ? ` (was ${money(r.w)})` : ""}${r.o ? ` - ${r.o}` : ""}`).join("\n");
+    const dinners = Number($("dinners").textContent), servings = Number($("servings").textContent);
+    const minutes = $("minutes").value, prefs = $("prefs").value.trim();
+    return `You are a practical home cook in Australia planning weeknight dinners around this week's supermarket specials.
+
+SPECIALS (only these count as "on special"):
+${lines}
+
+TASK: Plan ${dinners} different dinners, each serving ${servings}.${minutes ? ` Each must take no more than ${minutes} minutes in total.` : ""}${prefs ? `\nHousehold preferences: ${prefs}` : ""}
+Build each dinner around one or more specials, favouring the biggest real savings and ingredients that can be shared across meals so nothing is wasted. Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures. Costs are AUD estimates using the sale prices above plus typical supermarket prices for everything else.
+
+Reply with only JSON in exactly this shape:
+{"recipes":[{"title":"","description":"one sentence","servings":4,"minutes":35,"sale":[{"item":"exact name from the specials","store":"Coles","price":6.75,"qty":"2 packs"}],"other":["2 cloves garlic","1 tbsp soy sauce"],"steps":["short step","short step"],"cost":18.5,"savings":6.0}],"shopping":{"Coles":["2 x Coles RSPCA Chicken Breast Diced 500g"]},"notes":"one or two short tips (freezing, leftovers)"}
+Keep each recipe to at most 8 steps.`;
+  }
+
+  $("planBtn").addEventListener("click", async () => {
+    if (!state.sample || state.busy) return;
+    state.busy = true; updatePlanButton();
+    $("status").classList.remove("err"); $("status").textContent = "Claude is planning your dinners…";
+    try {
+      const plan = await state.sample.json(buildPrompt(), {
+        modelTier: "default", cache: false,
+        onText: ({ text }) => { $("status").textContent = text ? `Writing recipes… (${Math.round(text.length / 100) / 10}k characters)` : "Claude is thinking…"; },
+      });
+      if (!plan || !Array.isArray(plan.recipes) || !plan.recipes.length) throw { code: "bad_shape", message: "The reply had no recipes." };
+      const saved = { plan, made: new Date().toISOString(), dealsUpdated: state.week?.updated || null };
+      renderPlan(saved);
+      $("status").textContent = "Done. Your plan is saved below.";
+      if (state.db) { try { await state.db.doc("plans/latest").set(saved); } catch { $("status").textContent = "Done. (Couldn't save the plan for next time.)"; } }
+      $("plan").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    } catch (e) {
+      $("status").classList.add("err");
+      const code = e && e.code;
+      $("status").textContent =
+        code === "not_granted" ? "Planning needs permission to ask Claude. Allow it from this page's permissions to try again." :
+        code === "rate_limited" ? "You've hit your Claude usage limit for now. Try again later." :
+        code === "invalid_json" || code === "bad_shape" ? "Claude's answer came back incomplete. Press Plan my dinners to try again, or ask for fewer dinners." :
+        "Something went wrong while planning. Press Plan my dinners to try again.";
+    } finally { state.busy = false; updatePlanButton(); }
+  });
+
+  /* ---------- capabilities ---------- */
+  (async () => {
+    const claude = window.claude;
+    if (!claude || typeof claude.use !== "function") { $("meta").textContent = "Open this page on claude.ai or in the Claude app to see this week's specials."; return; }
+    const [db, sample] = await Promise.all([claude.use("db").catch(() => null), claude.use("sample").catch(() => null)]);
+    state.db = db; state.sample = sample; updatePlanButton();
+    if (!db) { $("meta").textContent = "Sign in to claude.ai to see this week's specials."; return; }
+    const timer = setTimeout(() => { if (!state.week) $("meta").textContent = "Still loading specials… check your connection."; }, 10000);
+    db.doc("weeks/current").onSnapshot((snap) => {
+      clearTimeout(timer);
+      if (snap.exists) showWeek(snap.data() || {});
+      else $("meta").textContent = "No specials loaded yet. They're added each week.";
+    }, () => { clearTimeout(timer); $("meta").textContent = "Couldn't load the specials. Reopen the page to try again."; });
+    db.doc("plans/latest").onSnapshot((snap) => { if (snap.exists && !state.busy) renderPlan(snap.data()); }, () => {});
+  })();
+})();
+</script>

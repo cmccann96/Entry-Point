@@ -65,3 +65,18 @@ keeps the list focused on things you can cook with.
 ```bash
 python -m pytest meal_deals/tests
 ```
+
+## Phone page (Dinner Deals)
+
+`page/dinner_deals.html` is published as a private claude.ai page. It reads this week's
+specials from the page's own database (document `weeks/current`). Its "Plan my dinners"
+button asks Claude directly from the page, so no API key is needed there. The latest
+plan is saved to `plans/latest`, so it shows on every device.
+
+To refresh the specials by hand:
+
+```bash
+python -m meal_deals --stores coles --deals-only --save-deals deals.json
+python -m meal_deals.export_page deals.json page_data.json
+# then write page_data.json to the page's weeks/current document (Claude does this weekly)
+```
