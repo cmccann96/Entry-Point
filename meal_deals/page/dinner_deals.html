@@ -118,6 +118,12 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
 .checkout.sub2 { border-top: 0; padding-top: 0; font-weight: 400; color: var(--muted); }
 .save-t { color: var(--save); }
 .shop input:checked + .li { text-decoration: line-through; color: var(--muted); }
+.shop .li a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.fill { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; }
+.fill h3 { font-size: 1.1rem; }
+.log { margin: 0; padding-left: 1.2em; font-size: .88rem; max-height: 220px; overflow-y: auto; display: grid; gap: 2px; }
+.log .ok { color: var(--brand); font-weight: 700; }
+.log .warn { color: var(--save); }
 
 /* Specials shelf */
 .shelf { display: grid; gap: 12px; }
@@ -265,7 +271,7 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
   }
   function priceLine(ref, it, packs) {
     const price = it ? it.p : num(ref.price), full = it && it.w ? it.w : price;
-    return { item: it ? it.n : String(ref.item || "Item"), store: it ? it.s : String(ref.store || ""), size: it ? it.z || "" : "",
+    return { item: it ? it.n : String(ref.item || "Item"), store: it ? it.s : String(ref.store || ""), size: it ? it.z || "" : "", url: it ? it.u || "" : "",
              promo: it ? it.o || "" : "", packs, price, full, cost: round2(packs * price), fullCost: round2(packs * full) };
   }
   function costPlan(plan, chosen, defaultServes) {
@@ -319,13 +325,23 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
             <div><h4>Method</h4><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>
           </div>
         </details>`).join("")}
-      ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<label><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li"><span>${it.packs} × ${esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span><span class="amt">${money(it.cost)}</span></span></label>`).join("")}</div>`).join("")}
+      ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<label><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li"><span>${it.packs} × ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.item)}</a>` : esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span><span class="amt">${money(it.cost)}</span></span></label>`).join("")}</div>`).join("")}
+        <p class="fine">Tap an item to open it at the store, then use Add to trolley there. Sign in to your store account first so the items go into your own trolley.</p>
         <div class="checkout"><span>Specials at the checkout</span><span class="amt">${money(t.checkout)}</span></div>
         <div class="checkout sub2"><span>Full price for the same items</span><span class="amt"><s>${money(t.checkoutFull)}</s></span></div>
         <div class="checkout sub2"><span>Saving at the checkout</span><span class="amt save-t">${money(coSave)}</span></div>
-        <p class="fine">The checkout total covers the specials you buy, in whole packs. Dinner costs above count only the share of each pack a meal uses, plus the other ingredients. Multibuy prices need the full deal quantity.</p></div>` : ""}
+        <p class="fine">The checkout total covers the specials you buy, in whole packs. Dinner costs above count only the share of each pack a meal uses, plus the other ingredients. Multibuy prices need the full deal quantity.</p></div>
+        <div class="fill" id="fill">
+          <h3>Fill my trolley</h3>
+          <p class="fine">On your computer, open this page in the Claude desktop app and Claude will add every item above to your trolley in the app's browser. It stops before checkout: you review the trolley and pay yourself. Sign in to your store account in the app's browser first.</p>
+          <div class="go"><button class="btn" id="fillBtn" type="button">Add all to my trolley</button><button class="btn ghost" id="fillStop" type="button" hidden>Stop</button></div>
+          <ol class="log" id="fillLog" hidden></ol>
+          <p class="status" id="fillStatus" role="status"></p>
+        </div>` : ""}
       ${p.notes ? `<p class="notes">${esc(p.notes)}</p>` : ""}`;
     $("plan").hidden = false;
+    state.lastPlan = p;
+    if ($("fillBtn")) { $("fillBtn").addEventListener("click", () => fillTrolley(p)); $("fillStop").addEventListener("click", () => state.fillAbort && state.fillAbort.abort()); }
     $("plan").querySelectorAll("[data-tick]").forEach((cb) => cb.addEventListener("change", () => { ticks[cb.dataset.tick] = cb.checked; store.set(key, JSON.stringify(ticks)); }));
   }
 
@@ -390,6 +406,79 @@ Keep each recipe to at most 8 steps.`;
         "Something went wrong while planning. Press Plan my dinners to try again.";
     } finally { state.busy = false; updatePlanButton(); }
   });
+
+  /* ---------- fill the trolley with the Claude app's browser ---------- */
+  // Claude drives the desktop app's built-in browser through the viewer's own consent.
+  // The page refuses any call that looks like checkout or payment.
+  const BROWSER = "host:claude_browser";
+  const BROWSER_TOOLS = ["preview_start", "navigate", "find", "read_page", "get_page_text", "computer", "form_input"];
+  const FORBIDDEN = /check\s*-?\s*out|place\s*(my\s*)?order|payment|pay\s*now|confirm\s*order|credit\s*card|card\s*number|sign\s*out|log\s*out/i;
+  const fillLog = (msg, cls) => { const li = document.createElement("li"); li.textContent = msg; if (cls) li.className = cls; $("fillLog").append(li); $("fillLog").hidden = false; li.scrollIntoView({ block: "nearest" }); };
+
+  function resultText(res) {
+    const parts = (res && Array.isArray(res.content) ? res.content : []).map((b) => (b.type === "text" ? b.text : `[${b.type} omitted]`));
+    const text = parts.join("\n") || (res && res.payload != null ? JSON.stringify(res.payload) : "(no output)");
+    return text.length > 30000 ? text.slice(0, 30000) + "\n[truncated]" : text;
+  }
+
+  async function fillTrolley(plan) {
+    if (state.filling) return;
+    const mcp = await window.claude?.use?.("mcp").catch(() => null);
+    $("fillStatus").classList.remove("err");
+    if (!mcp || !state.sample) { $("fillStatus").classList.add("err"); $("fillStatus").textContent = "This only works when the page is open in the Claude desktop app on your computer."; return; }
+    const caps = await state.sample.limits().catch(() => null);
+    if (caps && !caps.tools) { $("fillStatus").classList.add("err"); $("fillStatus").textContent = "This Claude app can't run the trolley helper yet. Update the app and try again."; return; }
+    const items = plan.shopping.filter((s) => s.url);
+    if (!items.length) { $("fillStatus").textContent = "There's nothing in the shopping list to add."; return; }
+
+    let descs = {};
+    try { const lt = await mcp.listTools(BROWSER); (lt.tools || []).forEach((t) => (descs[t.name] = t.description)); } catch {}
+    const tools = BROWSER_TOOLS.map((name) => ({
+      name: "browser_" + name,
+      description: (`The built-in browser's "${name}" tool. Pass its own arguments as the object. ` + (descs[name] || "")).slice(0, 1000),
+      inputSchema: { type: "object", additionalProperties: true },
+      async execute(input, ctx) {
+        const args = input && typeof input === "object" ? input : {};
+        if (FORBIDDEN.test(JSON.stringify(args))) { fillLog(`Blocked a ${name} step that looked like checkout or payment.`, "warn"); throw new Error("Blocked by the page: never go to checkout, payment, or sign out. Stop and report."); }
+        fillLog(name === "navigate" || name === "preview_start" ? `Opening ${String(args.url || "").replace(/^https?:\/\/(www\.)?/, "").slice(0, 70)}` : name === "computer" ? `Clicking (${String(args.action || "action")})` : `Reading the page (${name})`);
+        try { return resultText(await mcp.callTool(BROWSER, name, args, { signal: ctx && ctx.signal })); }
+        catch (e) {
+          if (e && (e.code === "server_not_connected" || e.code === "not_in_manifest")) throw new Error("The app's browser isn't reachable from here. Stop and tell the person to open this page in the Claude desktop app.");
+          throw new Error((e && e.message) || "Browser step failed");
+        }
+      },
+    }));
+    tools.push({ name: "report_item", description: "Call once per shopping-list item after trying it: status is added, partly_added, unavailable or failed; note says what happened.",
+      inputSchema: { type: "object", properties: { item: { type: "string" }, status: { type: "string" }, quantity: { type: "number" }, note: { type: "string" } }, required: ["item", "status"] },
+      execute(input) { const ok = /^added/.test(String(input.status)); fillLog(`${ok ? "✓" : "!"} ${String(input.item).slice(0, 80)}: ${String(input.status).replace("_", " ")}${input.quantity ? ` (${Number(input.quantity)})` : ""}${input.note ? ` · ${String(input.note).slice(0, 120)}` : ""}`, ok ? "ok" : "warn"); return "noted"; } });
+
+    const list = items.map((s, i) => `${i + 1}. ${s.packs} × ${s.item}${s.size ? ` (${s.size})` : ""} [${s.store}] ${s.url}`).join("\n");
+    const prompt = `You are filling the person's online supermarket trolley in the Claude desktop app's built-in browser, using the browser_* tools. They are signed in to their own account there.
+
+Shopping list (quantity × product, store, product page):
+${list}
+
+For each item: open its product page (browser_preview_start with the url for the first one, then browser_navigate in that same tab), find the "Add to trolley" (or "Add") button with browser_find or browser_read_page, click it with browser_computer, and raise the quantity to the number listed (click "+" or set the quantity box). Prefer reading the page over screenshots. Then call report_item for that item. If an item is unavailable or out of stock, report it and move on.
+
+RULES: Never open the trolley checkout, never enter payment or delivery details, never place an order, and never sign out or change account settings. If you see that the person is not signed in, or a sign-in page or a "verify you are human" check appears, stop and say so. When every item is done, finish with a short plain summary: what went in, anything missing, and that they should open the trolley, check it and pay themselves.`;
+
+    state.filling = true; state.fillAbort = new AbortController();
+    $("fillBtn").disabled = true; $("fillStop").hidden = false; $("fillLog").innerHTML = ""; $("fillLog").hidden = true;
+    $("fillStatus").textContent = "Claude is adding your items. Approve the browser when the app asks.";
+    try {
+      const res = await state.sample(prompt, { tools, modelTier: "default", cache: false, signal: state.fillAbort.signal,
+        onText: ({ text }) => { if (text) $("fillStatus").textContent = text.slice(-400); } });
+      $("fillStatus").textContent = (res && res.text) || "Done. Check your trolley before paying.";
+    } catch (e) {
+      $("fillStatus").classList.add("err");
+      const code = e && e.code;
+      $("fillStatus").textContent =
+        code === "aborted" || state.fillAbort.signal.aborted ? "Stopped. Items already added stay in your trolley." :
+        code === "not_granted" ? "The trolley helper needs permission to ask Claude. Allow it in this page's permissions and try again." :
+        code === "rate_limited" ? "You've hit your Claude usage limit for now. Try again later." :
+        (e && e.text ? e.text.slice(-400) + " " : "") + "The trolley helper stopped before finishing. Items already added stay in your trolley.";
+    } finally { state.filling = false; $("fillBtn").disabled = false; $("fillStop").hidden = true; }
+  }
 
   /* ---------- capabilities ---------- */
   (async () => {
