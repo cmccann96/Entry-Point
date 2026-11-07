@@ -1,0 +1,5 @@
+requests>=2.31
+anthropic>=2.6
+pydantic>=2.6
+# Optional, for --browser mode (then run: playwright install chromium)
+playwright>=1.45

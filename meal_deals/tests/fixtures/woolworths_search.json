@@ -1,0 +1,8 @@
+{"SearchResultsCount": 3, "Products": [
+ {"Name": "Chicken", "Products": [
+  {"Stockcode": 123, "Name": "Woolworths RSPCA Chicken Breast Fillets", "DisplayName": "Woolworths RSPCA Chicken Breast Fillets Large Pack", "UrlFriendlyName": "woolworths-rspca-chicken-breast-fillets", "Price": 11.0, "WasPrice": 16.5, "IsOnSpecial": true, "IsHalfPrice": false, "IsAvailable": true, "PackageSize": "1kg", "CupString": "$11.00 / 1KG"}]},
+ {"Name": "Pasta", "Products": [
+  {"Stockcode": 456, "Name": "San Remo Spaghetti", "DisplayName": "San Remo Spaghetti No 5", "UrlFriendlyName": "san-remo-spaghetti", "Price": 1.6, "WasPrice": 3.2, "IsOnSpecial": true, "IsHalfPrice": true, "IsAvailable": true, "PackageSize": "500g", "CupString": "$0.32 / 100G"}]},
+ {"Name": "Rice", "Products": [
+  {"Stockcode": 789, "Name": "SunRice Jasmine", "DisplayName": "SunRice Jasmine Rice", "Price": 5.0, "WasPrice": 5.0, "IsOnSpecial": false, "IsAvailable": true, "PackageSize": "1kg"}]}
+]}
