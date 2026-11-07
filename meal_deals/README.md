@@ -71,8 +71,9 @@ python -m pytest meal_deals/tests
 `page/dinner_deals.html` is published as a private claude.ai page. It reads this week's
 specials from the page's own database (document `weeks/current`), grouped into the
 categories and sub-types from `categories.py`, with a price per kg where the store gives one.
-The planner offers plan styles (balanced, best bang for buck, cheapest with meat, batch
-cook, quick & easy, healthy, vegetarian) and optional extras (kid friendly, lunches, etc.). Its "Plan my dinners"
+The planner offers plan styles (balanced, best bang for buck, cheapest with meat, quick &
+easy, healthy, vegetarian), optional extras (kid friendly, lunches, etc.), and how many
+meals to cook, how many nights each meal lasts, and how many people eat each night. Its "Plan my dinners"
 button asks Claude directly from the page, so no API key is needed there. The latest
 plan is saved to `plans/latest`, so it shows on every device.
 

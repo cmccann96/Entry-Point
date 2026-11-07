@@ -57,8 +57,11 @@ a { color: var(--brand); }
 /* Planner */
 .planner { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 16px; }
 .planner h2 { font-size: 1.35rem; font-weight: 800; }
-.row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 420px) { .row { grid-template-columns: 1fr 1fr; } .row .field:last-child { grid-column: 1 / -1; } }
+.row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 600px) { .row { grid-template-columns: 1fr 1fr; } }
+.coverage { margin: -4px 0 0; font-size: .92rem; }
+.coverage b { font-family: var(--f-display); font-weight: 800; }
+.coverage .warn-note { display: block; color: var(--muted); font-size: .84rem; }
 .field { display: grid; gap: 4px; min-width: 0; }
 .field label { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -199,23 +202,28 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     </fieldset>
     <div class="row">
       <div class="field">
-        <label for="dinners">Nights</label>
-        <div class="stepper"><button type="button" data-step="dinners" data-d="-1" aria-label="Fewer nights">−</button><output id="dinners">5</output><button type="button" data-step="dinners" data-d="1" aria-label="More nights">+</button></div>
+        <label for="meals">Meals to cook</label>
+        <div class="stepper"><button type="button" data-step="meals" data-d="-1" aria-label="Fewer meals">−</button><output id="meals">5</output><button type="button" data-step="meals" data-d="1" aria-label="More meals">+</button></div>
       </div>
       <div class="field">
-        <label for="servings">Serves</label>
+        <label for="each">Nights each lasts</label>
+        <div class="stepper"><button type="button" data-step="each" data-d="-1" aria-label="Fewer nights per meal">−</button><output id="each">1</output><button type="button" data-step="each" data-d="1" aria-label="More nights per meal">+</button></div>
+      </div>
+      <div class="field">
+        <label for="servings">People per night</label>
         <div class="stepper"><button type="button" data-step="servings" data-d="-1" aria-label="Fewer people">−</button><output id="servings">4</output><button type="button" data-step="servings" data-d="1" aria-label="More people">+</button></div>
       </div>
       <div class="field">
-        <label for="minutes">Time per dinner</label>
+        <label for="minutes">Max cooking time</label>
         <select id="minutes">
           <option value="">Any</option>
-          <option value="30">30 min or less</option>
-          <option value="45" selected>45 min or less</option>
-          <option value="60">1 hour or less</option>
+          <option value="30">30 min</option>
+          <option value="45" selected>45 min</option>
+          <option value="60">1 hour</option>
         </select>
       </div>
     </div>
+    <p class="coverage" id="coverage" aria-live="polite"></p>
     <fieldset class="group-set">
       <legend>Also (optional)</legend>
       <div class="chips" id="extras" role="group" aria-label="Extra preferences"></div>
@@ -278,8 +286,6 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
       prompt: "PRIORITY: the biggest saving against full price. Build the week around the specials with the largest percentage and dollar discounts, so the plan's total is as far below its full-price cost as possible. Prefer specials that show a real \"was\" price." },
     { id: "cheapmeat", name: "Cheapest with meat", blurb: "Lowest cost per serve, meat or fish every night.",
       prompt: "PRIORITY: the lowest cost per serve, with meat or seafood in every dinner. Pick proteins with low prices per kg (shown in the list), cheap cuts and mince, and stretch them with vegetables, legumes, rice, pasta or potatoes. Total cost matters more than the size of the discount." },
-    { id: "batch", name: "Batch cook", blurb: "Cook a few big meals that cover several nights.", batch: true,
-      prompt: "PRIORITY: batch cooking. Cook a few big dishes once each and eat each one over several nights in a row, instead of cooking every night." },
     { id: "quick", name: "Quick & easy", blurb: "30 minutes or less, short ingredient lists.",
       prompt: "PRIORITY: speed. Every dinner takes 30 minutes or less in total, uses at most 8 ingredients plus pantry staples, and needs one pan, tray or pot where possible." },
     { id: "healthy", name: "Healthy", blurb: "Lean protein and plenty of veg.", noReady: true,
@@ -296,6 +302,8 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     { id: "df", name: "Dairy free", prompt: "Every dinner must be dairy free." },
   ];
   const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[0];
+  // "Batch cook" used to be a style; it's now the "Nights each lasts" setting.
+  if (state.style === "batch") { state.style = "balanced"; store.set("dd-style", "balanced"); if (!store.get("dd-each")) store.set("dd-each", "3"); }
   if (!STYLES.some((s) => s.id === state.style)) state.style = "balanced";
   state.extras = state.extras.filter((id) => EXTRAS.some((x) => x.id === id));
 
@@ -344,11 +352,24 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
   const UNIT_RANK = { kg: 0, L: 1, each: 2 };
 
   /* ---------- stepper ---------- */
-  const limits = { dinners: [1, 7], servings: [1, 8] };
+  const limits = { meals: [1, 7], each: [1, 5], servings: [1, 8] };
+  const stepVal = (id) => Number($(id).textContent);
+  const setStep = (id, v) => { const [lo, hi] = limits[id]; $(id).value = $(id).textContent = String(Math.min(hi, Math.max(lo, Math.round(v) || lo))); };
+  for (const id of Object.keys(limits)) { const v = Number(store.get("dd-" + id)); if (v) setStep(id, v); }
   document.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => {
-    const id = b.dataset.step, out = $(id), [lo, hi] = limits[id];
-    out.value = out.textContent = String(Math.min(hi, Math.max(lo, Number(out.textContent) + Number(b.dataset.d))));
+    const id = b.dataset.step;
+    setStep(id, stepVal(id) + Number(b.dataset.d)); store.set("dd-" + id, $(id).textContent); renderCoverage();
   }));
+  function renderCoverage() {
+    const meals = stepVal("meals"), each = stepVal("each"), people = stepVal("servings"), total = meals * each;
+    const s = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+    const who = people === 1 ? "1 person" : `${people} people`;
+    $("coverage").innerHTML = each === 1
+      ? `<b>${s(meals, "dinner")}</b> for ${who}, a different meal each night.`
+      : `<b>${s(meals, "meal")} × ${s(each, "night")} = ${s(total, "dinner")}</b> for ${who}. Cook ${people * each} serves of each meal.` +
+        (each > 3 ? `<span class="warn-note">Cooked food keeps about 3 days in the fridge, so the plan will tell you which portions to freeze.</span>` : "");
+  }
+  renderCoverage();
   const savedPrefs = store.get("dd-prefs"); if (savedPrefs) $("prefs").value = savedPrefs;
   $("prefs").addEventListener("change", () => store.set("dd-prefs", $("prefs").value));
 
@@ -454,12 +475,13 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     return { item: it ? it.n : String(ref.item || "Item"), store: it ? it.s : String(ref.store || ""), size: it ? it.z || "" : "", url: it ? it.u || "" : "",
              promo: it ? it.o || "" : "", packs, price, full, cost: round2(packs * price), fullCost: round2(packs * full) };
   }
-  function costPlan(plan, chosen, defaultServes) {
+  function costPlan(plan, chosen, defaultServes, nightsEach) {
     const recipes = plan.recipes.map((r) => {
       const sale = (Array.isArray(r.sale) ? r.sale : []).map((s) => ({ ...priceLine(s, lookup(s, chosen), num(s.packs) || 1), use: String(s.use || s.qty || "") }));
       const other = (Array.isArray(r.other) ? r.other : []).map((o) => (typeof o === "string" ? { item: o, cost: 0 } : { item: String(o.item || ""), cost: num(o.cost) }));
       // A batch dish covers several nights; its servings already include every night.
-      const nightsCovered = Math.min(7, Math.max(1, Math.round(num(r.nights)) || 1));
+      // The household chose how many nights each meal lasts; hold Claude to it.
+      const nightsCovered = nightsEach ? Math.min(7, Math.max(1, nightsEach)) : Math.min(7, Math.max(1, Math.round(num(r.nights)) || 1));
       const serves = Math.round(num(r.servings)) || defaultServes * nightsCovered;
       const otherCost = round2(other.reduce((a, o) => a + o.cost, 0));
       const total = round2(sale.reduce((a, s) => a + s.cost, 0) + otherCost);
@@ -494,11 +516,13 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     const style = saved.style ? styleOf(saved.style) : null;
     const extras = (saved.extras || []).map((id) => EXTRAS.find((x) => x.id === id)?.name).filter(Boolean);
     const isBatch = p.recipes.some((r) => (r.nights || 1) > 1);
+    // Day names for up to a week; past that, number the nights so the days don't wrap around.
+    const totalNights = p.recipes.reduce((a, r) => a + (r.nights || 1), 0);
     let night = 0;
     const nightLabel = (count) => {
       const a = night, b = night + count - 1; night += count;
-      const name = (i) => nights[i % 7];
-      return count > 1 ? `${name(a)}–${name(b)}` : name(a);
+      if (totalNights > 7) return count > 1 ? `Nights ${a + 1}–${b + 1}` : `Night ${a + 1}`;
+      return count > 1 ? `${nights[a]}–${nights[b]}` : nights[a];
     };
     $("plan").innerHTML = `
       <div class="plan-head"><h2>This week's dinners</h2>${made ? `<span class="totals">planned ${made}</span>` : ""}</div>
@@ -582,19 +606,19 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
       const unit = unitText(r);
       return `#${i} [${r.c}${r.t && r.t !== r.c ? " / " + r.t : ""}] ${r.n}${r.z ? ` (${r.z})` : ""} ${money(r.p)}${r.w ? ` (was ${money(r.w)}, ${pctOff(r)}% off)` : ""}${unit ? ` · ${unit}` : ""}${r.o ? ` - ${r.o}` : ""}`;
     }).join("\n");
-    const nightsN = Number($("dinners").textContent), servings = Number($("servings").textContent);
+    const meals = stepVal("meals"), each = stepVal("each"), servings = stepVal("servings");
     const minutes = $("minutes").value, prefs = $("prefs").value.trim();
     const extras = EXTRAS.filter((x) => state.extras.includes(x.id)).map((x) => "- " + x.prompt).join("\n");
-    const cooks = Math.max(1, Math.min(nightsN, Math.round(nightsN / 2.5)));
-    const task = style.batch
-      ? `TASK: Cover ${nightsN} nights for ${servings} people with about ${cooks} big-batch dish${cooks === 1 ? "" : "es"}. Each dish is cooked once in a large quantity and eaten on 2 or 3 nights in a row; the "nights" values must add up to exactly ${nightsN}. A dish's "servings" = its nights × ${servings}. Choose dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps 3 days in the fridge, so freeze anything for later nights.`
-      : `TASK: Plan ${nightsN} different dinners, each serving ${servings}; each has "nights": 1.`;
+    const batch = each > 1;
+    const task = batch
+      ? `TASK: Plan exactly ${meals} different meal${meals === 1 ? "" : "s"}. Each one is cooked once in a big batch and eaten on ${each} nights in a row by ${servings} ${servings === 1 ? "person" : "people"}, so every recipe has "nights": ${each} and "servings": ${each * servings} (${meals * each} dinners in total). Scale every quantity and pack count for all ${each * servings} serves. Choose dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps about 3 days in the fridge${each > 3 ? `, so say which nights' portions to freeze straight after cooking` : ", so say what to freeze if plans change"}.`
+      : `TASK: Plan exactly ${meals} different dinner${meals === 1 ? "" : "s"}, each serving ${servings}; each recipe has "nights": 1.`;
     const prompt = `You are a practical home cook in Australia planning dinners around this week's supermarket specials.
 
 SPECIALS (only these count as "on special"; each has an id like #12, its category, price, any "was" price and price per kg or litre):
 ${lines}
 
-${task}${minutes && style.id !== "quick" ? `\nEach dinner (or each batch cook) must take no more than ${minutes} minutes of hands-on cooking.` : ""}
+${task}${minutes && style.id !== "quick" ? `\nEach ${batch ? "batch cook" : "dinner"} must take no more than ${minutes} minutes of hands-on cooking.` : ""}
 PLAN STYLE: ${style.prompt}${extras ? `\nALSO:\n${extras}` : ""}${prefs ? `\nHOUSEHOLD NOTES (these win over everything else): ${prefs}` : ""}
 Use ingredients that can be shared across dinners so nothing is wasted. Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
 
@@ -604,9 +628,9 @@ COSTING (the page does the maths, so be precise with these numbers):
 - "shopping" lists the whole packs of specials to buy for all the recipes together ("packs" is a whole number). For multibuy deals ("Buy 2 for..."), buy the deal quantity when it's worth it.
 
 Reply with only JSON in exactly this shape:
-{"recipes":[{"title":"","description":"one sentence","nights":${style.batch ? 3 : 1},"servings":${style.batch ? 3 * servings : servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]${style.batch ? `,"ideas":["Night 2: ...","Night 3: ..."],"storage":"..."` : ""}}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips"}
-Keep each recipe to at most ${style.batch ? 10 : 8} steps.`;
-    return { prompt, chosen, servings, style: style.id, extras: [...state.extras] };
+{"recipes":[{"title":"","description":"one sentence","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips"}
+Keep each recipe to at most ${batch ? 10 : 8} steps.`;
+    return { prompt, chosen, servings, style: style.id, extras: [...state.extras], meals, each };
   }
 
   $("planBtn").addEventListener("click", async () => {
@@ -620,7 +644,7 @@ Keep each recipe to at most ${style.batch ? 10 : 8} steps.`;
         onText: ({ text }) => { $("status").textContent = text ? `Writing recipes… (${Math.round(text.length / 100) / 10}k characters)` : "Claude is thinking…"; },
       });
       if (!raw || !Array.isArray(raw.recipes) || !raw.recipes.length) throw { code: "bad_shape", message: "The reply had no recipes." };
-      const plan = costPlan(raw, ask.chosen, ask.servings);
+      const plan = costPlan(raw, ask.chosen, ask.servings, ask.each);
       const saved = { plan, made: new Date().toISOString(), dealsUpdated: state.week?.updated || null, style: ask.style, extras: ask.extras };
       renderPlan(saved);
       $("status").textContent = "Done. Your plan is saved below.";
