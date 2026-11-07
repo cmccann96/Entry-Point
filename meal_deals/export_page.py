@@ -3,8 +3,8 @@
     python -m meal_deals.export_page deals.json page_data.json
 
 Drops non-food items (pet food, snacks, toiletries...), tags each item with a
-category from the search term that found it, and writes a compact JSON object
-(well under the page database's 256 KiB document limit).
+category and sub-type from its name (see categories.py), keeps its unit price,
+and writes a compact JSON object (well under the page database's 256 KiB document limit).
 """
 from __future__ import annotations
 
@@ -14,17 +14,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .categories import CATEGORY_ORDER, classify
 from .models import SaleItem
-
-CATEGORIES = {
-    "Meat & seafood": ["chicken", "beef mince", "steak", "pork", "lamb", "sausages", "salmon",
-                        "fish fillets", "prawns"],
-    "Fruit & veg": ["broccoli", "capsicum", "zucchini", "mushrooms", "potatoes", "sweet potato",
-                    "carrots", "spinach", "tomatoes", "onions", "cauliflower", "pumpkin"],
-    "Dairy, eggs & tofu": ["cheese", "cream", "eggs", "tofu"],
-    "Pantry": ["pasta", "rice", "noodles", "tortillas", "coconut milk"],
-}
-TERM_TO_CAT = {t: c for c, terms in CATEGORIES.items() for t in terms}
 
 JUNK = re.compile(
     r"\b(cat|cats|dog|dogs|pet|kitten|puppy|whiskas|felix|sheba|dine|schmackos|pedigree|applaws|"
@@ -32,12 +23,12 @@ JUNK = re.compile(
     r"ice cream|gelato|frosting|dip|crackers?|biscuits?|cookies?|chocolate|lolly|lollies|cake|"
     r"croutons|puffs|chips?|crisps|popcorn|bars?|snacks?|drink|juice|soft drink|cola|"
     r"protein shake|smoothie|yoghurt pouch|baby food|toddler|custard|dessert|pudding|"
-    r"lip balm|sunscreen|toothpaste|nappies|wipes|cakes|rings|pringles|nudie|months\+|on the go|hommus|hummus)\b",
+    r"lip balm|sunscreen|toothpaste|nappies|wipes|cakes|rings|pringles|nudie|\d+ ?months|on the go|hommus|hummus|"
+    r"strawberries|creamy rice|creamed rice|rice pudding|jatz|herbal essences|leave in|hair|cocktail|moisturi[sz]er|serum|cleanser|lotion|nachips|corn chips|furikake)\b",
     re.I,
 )
 # frozen potato chips are a fine dinner side, so keep those
 KEEP = re.compile(r"\b(frozen\b.*\bchips|oven chips|wedges)\b", re.I)
-PANTRY_WORDS = re.compile(r"\b(sauce|seasoning|paste|stock|mix|ketchup|kit|recipe base|marinade|soup|dressing)\b", re.I)
 
 
 def is_dinner_food(item: SaleItem) -> bool:
@@ -49,6 +40,7 @@ def build_doc(items: list[SaleItem]) -> dict:
     for i in items:
         if not is_dinner_food(i):
             continue
+        cat, sub = classify(i.name)
         rows.append({
             "s": i.store,
             "n": i.name,
@@ -56,7 +48,9 @@ def build_doc(items: list[SaleItem]) -> dict:
             "w": i.was_price,
             "z": i.size,
             "o": i.promo,
-            "c": "Pantry" if PANTRY_WORDS.search(i.name) else TERM_TO_CAT.get((i.search_term or "").lower(), "Other"),
+            "c": cat,
+            "t": sub,
+            "k": i.unit_price,
             "u": i.url,
         })
     rows.sort(key=lambda r: -((r["w"] - r["p"]) / r["w"] if r["w"] else 0))
@@ -64,6 +58,7 @@ def build_doc(items: list[SaleItem]) -> dict:
         "updated": datetime.now(timezone.utc).isoformat(timespec="minutes"),
         "stores": sorted({r["s"] for r in rows}),
         "count": len(rows),
+        "categories": CATEGORY_ORDER,
         "items": rows,
     }
 

@@ -148,6 +148,39 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
 .deal .info { color: var(--muted); font-size: .84rem; }
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 20px; color: var(--muted); }
 .more { justify-self: center; }
+
+/* Plan style picker */
+fieldset.group-set { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
+fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+@media (max-width: 420px) { .style-grid { grid-template-columns: 1fr 1fr; } }
+.style { text-align: left; display: grid; gap: 2px; align-content: start; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.style-name { font-family: var(--f-display); font-weight: 800; font-size: 1rem; line-height: 1.2; }
+.style-blurb { font-size: .8rem; color: var(--muted); line-height: 1.3; }
+.style[aria-checked="true"] { background: var(--ticket); border-color: var(--ticket); color: var(--ticket-ink); }
+.style[aria-checked="true"] .style-blurb { color: var(--ticket-ink); opacity: .8; }
+.plan-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.ptag { background: var(--ink); color: var(--bg); border-radius: 999px; padding: 3px 10px; font-size: .8rem; font-weight: 700; }
+.ptag.light { background: var(--chip); color: var(--ink); font-weight: 400; }
+.night.multi { background: var(--ticket); color: var(--ticket-ink); }
+
+/* Specials: tools, grouped overview */
+.shelf-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.shelf-tools select { width: auto; }
+@media (max-width: 420px) { .shelf-tools { grid-template-columns: 1fr; } .shelf-tools select { width: 100%; } }
+.chips.subs button { font-size: .82rem; padding: 4px 10px; background: var(--chip); border-color: transparent; }
+.chips.subs button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+.group { display: grid; gap: 8px; }
+.group + .group { margin-top: 14px; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+.group-head h3 { font-size: 1.15rem; font-weight: 900; font-stretch: 85%; text-transform: uppercase; letter-spacing: .02em; }
+.see { background: none; border: 0; color: var(--brand); font-weight: 700; cursor: pointer; padding: 4px 0; white-space: nowrap; }
+.unit { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }
+@media (max-width: 560px) {
+  #chips, #subs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  #chips::-webkit-scrollbar, #subs::-webkit-scrollbar { display: none; }
+  #chips button, #subs button { flex: none; }
+}
 .foot { color: var(--muted); font-size: .8rem; }
 @media (prefers-reduced-motion: no-preference) { details.recipe[open] .body { animation: fade .2s ease-out; } @keyframes fade { from { opacity: .3 } to { opacity: 1 } } }
 </style>
@@ -160,10 +193,14 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
 
   <section class="planner" aria-labelledby="plan-title">
     <h2 id="plan-title">Plan dinners from this week's specials</h2>
+    <fieldset class="group-set">
+      <legend>What kind of week?</legend>
+      <div class="style-grid" id="styles" role="radiogroup" aria-label="Plan style"></div>
+    </fieldset>
     <div class="row">
       <div class="field">
-        <label for="dinners">Dinners</label>
-        <div class="stepper"><button type="button" data-step="dinners" data-d="-1" aria-label="Fewer dinners">−</button><output id="dinners">5</output><button type="button" data-step="dinners" data-d="1" aria-label="More dinners">+</button></div>
+        <label for="dinners">Nights</label>
+        <div class="stepper"><button type="button" data-step="dinners" data-d="-1" aria-label="Fewer nights">−</button><output id="dinners">5</output><button type="button" data-step="dinners" data-d="1" aria-label="More nights">+</button></div>
       </div>
       <div class="field">
         <label for="servings">Serves</label>
@@ -179,9 +216,13 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
         </select>
       </div>
     </div>
+    <fieldset class="group-set">
+      <legend>Also (optional)</legend>
+      <div class="chips" id="extras" role="group" aria-label="Extra preferences"></div>
+    </fieldset>
     <div class="field">
-      <label for="prefs">Likes, dislikes, dietary needs</label>
-      <textarea id="prefs" placeholder="e.g. no pork, kid friendly, one vegetarian night, we have rice and spices at home"></textarea>
+      <label for="prefs">Anything else</label>
+      <textarea id="prefs" placeholder="e.g. no pork, we already have rice and spices, someone hates mushrooms"></textarea>
     </div>
     <div class="go">
       <button class="btn" id="planBtn" type="button" disabled>Plan my dinners</button>
@@ -196,8 +237,17 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
       <h2 id="shelf-title">On special</h2>
       <span class="meta" id="shelfCount"></span>
     </div>
-    <input type="search" id="q" placeholder="Search specials (e.g. salmon, mince, pasta)" aria-label="Search specials">
+    <div class="shelf-tools">
+      <input type="search" id="q" placeholder="Search specials (e.g. salmon, mince, pasta)" aria-label="Search specials">
+      <select id="sort" aria-label="Sort specials">
+        <option value="off">Biggest % off</option>
+        <option value="save">Biggest $ saving</option>
+        <option value="price">Lowest price</option>
+        <option value="unit">Lowest price per kg</option>
+      </select>
+    </div>
     <div class="chips" id="chips" role="group" aria-label="Filter by category"></div>
+    <div class="chips subs" id="subs" role="group" aria-label="Filter by type" hidden></div>
     <div class="list" id="list">
       <div class="empty">This week's specials will appear here once they've been loaded. They refresh every week.</div>
     </div>
@@ -215,8 +265,83 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
   const pctOff = (r) => (r.w && r.w > r.p ? Math.round((100 * (r.w - r.p)) / r.w) : 0);
   const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 
-  const CAT_ORDER = ["All", "Meat & seafood", "Fruit & veg", "Dairy, eggs & tofu", "Pantry"];
-  const state = { week: null, items: [], cat: "All", q: "", shown: 30, plan: null, db: null, sample: null, busy: false };
+  const DEFAULT_CATS = ["Meat", "Seafood", "Vegetables", "Dairy, eggs & tofu", "Pasta, rice & noodles", "Bread & wraps", "Pantry", "Ready meals & sides", "Other"];
+  const state = { week: null, items: [], cats: DEFAULT_CATS, cat: "All", sub: "", sort: store.get("dd-sort") || "off", q: "", shown: 30,
+                  plan: null, db: null, sample: null, busy: false, style: store.get("dd-style") || "balanced", extras: [] };
+  try { state.extras = JSON.parse(store.get("dd-extras") || "[]"); } catch {}
+
+  /* ---------- plan styles ---------- */
+  const STYLES = [
+    { id: "balanced", name: "Balanced week", blurb: "Good savings, variety and easy cooking.",
+      prompt: "Aim for a balanced week: good savings, a variety of proteins and cuisines, and easy weeknight cooking." },
+    { id: "value", name: "Best bang for buck", blurb: "Biggest savings against full price.",
+      prompt: "PRIORITY: the biggest saving against full price. Build the week around the specials with the largest percentage and dollar discounts, so the plan's total is as far below its full-price cost as possible. Prefer specials that show a real \"was\" price." },
+    { id: "cheapmeat", name: "Cheapest with meat", blurb: "Lowest cost per serve, meat or fish every night.",
+      prompt: "PRIORITY: the lowest cost per serve, with meat or seafood in every dinner. Pick proteins with low prices per kg (shown in the list), cheap cuts and mince, and stretch them with vegetables, legumes, rice, pasta or potatoes. Total cost matters more than the size of the discount." },
+    { id: "batch", name: "Batch cook", blurb: "Cook a few big meals that cover several nights.", batch: true,
+      prompt: "PRIORITY: batch cooking. Cook a few big dishes once each and eat each one over several nights in a row, instead of cooking every night." },
+    { id: "quick", name: "Quick & easy", blurb: "30 minutes or less, short ingredient lists.",
+      prompt: "PRIORITY: speed. Every dinner takes 30 minutes or less in total, uses at most 8 ingredients plus pantry staples, and needs one pan, tray or pot where possible." },
+    { id: "healthy", name: "Healthy", blurb: "Lean protein and plenty of veg.", noReady: true,
+      prompt: "PRIORITY: healthy dinners: lean proteins, at least two serves of vegetables per person, wholegrains where possible, little processed food. Avoid ready meals and crumbed or fried products." },
+    { id: "veg", name: "Vegetarian", blurb: "No meat or fish.", noMeat: true,
+      prompt: "PRIORITY: vegetarian. No meat, poultry or seafood (eggs and dairy are fine). Get protein from eggs, tofu, cheese, legumes and vegetables on special." },
+  ];
+  const EXTRAS = [
+    { id: "kids", name: "Kid friendly", prompt: "Every dinner is kid friendly: mild flavours and familiar foods." },
+    { id: "lunch", name: "Leftovers for lunch", prompt: "Cook enough of each dinner for one or two lunches the next day, and include those extra portions in the quantities and servings." },
+    { id: "freezer", name: "Freezer friendly", prompt: "Prefer dishes that freeze well, and say in the notes which ones to freeze." },
+    { id: "vegnight", name: "One vegetarian night", prompt: "Make one of the dinners vegetarian." },
+    { id: "gf", name: "Gluten free", prompt: "Every dinner must be gluten free." },
+    { id: "df", name: "Dairy free", prompt: "Every dinner must be dairy free." },
+  ];
+  const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[0];
+  if (!STYLES.some((s) => s.id === state.style)) state.style = "balanced";
+  state.extras = state.extras.filter((id) => EXTRAS.some((x) => x.id === id));
+
+  function renderStyles() {
+    $("styles").innerHTML = STYLES.map((s) => `<button type="button" role="radio" class="style" data-style="${s.id}" aria-checked="${s.id === state.style}">
+      <span class="style-name">${esc(s.name)}</span><span class="style-blurb">${esc(s.blurb)}</span></button>`).join("");
+    $("extras").innerHTML = EXTRAS.map((x) => `<button type="button" data-extra="${x.id}" aria-pressed="${state.extras.includes(x.id)}">${esc(x.name)}</button>`).join("");
+  }
+  $("styles").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-style]"); if (!b) return;
+    state.style = b.dataset.style; store.set("dd-style", state.style); renderStyles();
+    $("styles").querySelector(`[data-style="${state.style}"]`)?.focus();
+  });
+  $("styles").addEventListener("keydown", (e) => {
+    if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(e.key)) return;
+    e.preventDefault();
+    const i = STYLES.findIndex((s) => s.id === state.style), d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+    state.style = STYLES[(i + d + STYLES.length) % STYLES.length].id; store.set("dd-style", state.style); renderStyles();
+    $("styles").querySelector(`[data-style="${state.style}"]`)?.focus();
+  });
+  $("extras").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-extra]"); if (!b) return;
+    const id = b.dataset.extra;
+    state.extras = state.extras.includes(id) ? state.extras.filter((x) => x !== id) : [...state.extras, id];
+    store.set("dd-extras", JSON.stringify(state.extras)); renderStyles();
+  });
+  renderStyles();
+
+  /* ---------- unit prices ---------- */
+  // "$15.40/ 1kg", "$1.00/ 100g", "$0.44/ 100mL", "$1.90 each" -> comparable price per kg, per litre or each
+  function unitInfo(k) {
+    const s = String(k || "");
+    const m = /\$\s*([\d.]+)\s*(?:\/|per)\s*([\d.]*)\s*(kg|g|l|ml|ea|each)\b/i.exec(s);
+    if (m) {
+      const v = Number(m[1]), q = Number(m[2] || 1) || 1, u = m[3].toLowerCase();
+      if (u === "g") return { v: (v / q) * 1000, u: "kg" };
+      if (u === "kg") return { v: v / q, u: "kg" };
+      if (u === "ml") return { v: (v / q) * 1000, u: "L" };
+      if (u === "l") return { v: v / q, u: "L" };
+      return { v: v / q, u: "each" };
+    }
+    const e = /\$\s*([\d.]+)\s*each/i.exec(s);
+    return e ? { v: Number(e[1]), u: "each" } : null;
+  }
+  const unitText = (r) => { const u = unitInfo(r.k); return u ? `${money(u.v)}/${u.u === "each" ? "each" : u.u}` : ""; };
+  const UNIT_RANK = { kg: 0, L: 1, each: 2 };
 
   /* ---------- stepper ---------- */
   const limits = { dinners: [1, 7], servings: [1, 8] };
@@ -228,36 +353,87 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
   $("prefs").addEventListener("change", () => store.set("dd-prefs", $("prefs").value));
 
   /* ---------- specials shelf ---------- */
+  // Grouped by category when nothing is chosen; a category (and type) or a search gives one sorted list.
+  const SORTS = {
+    off: (a, b) => pctOff(b) - pctOff(a) || ((b.w || b.p) - b.p) - ((a.w || a.p) - a.p),
+    save: (a, b) => ((b.w || b.p) - b.p) - ((a.w || a.p) - a.p) || pctOff(b) - pctOff(a),
+    price: (a, b) => a.p - b.p,
+    unit: (a, b) => {
+      const ua = unitInfo(a.k), ub = unitInfo(b.k);
+      if (!ua || !ub) return (ua ? -1 : 0) - (ub ? -1 : 0) || a.p - b.p;
+      return UNIT_RANK[ua.u] - UNIT_RANK[ub.u] || ua.v - ub.v;
+    },
+  };
+  $("sort").value = SORTS[state.sort] ? state.sort : "off";
+  const countBy = (rows, key) => rows.reduce((m, r) => ((m[r[key]] = (m[r[key]] || 0) + 1), m), {});
+
   function renderChips() {
-    const counts = {}; state.items.forEach((r) => (counts[r.c] = (counts[r.c] || 0) + 1));
-    const cats = CAT_ORDER.filter((c) => c === "All" || counts[c]).concat(Object.keys(counts).filter((c) => !CAT_ORDER.includes(c)));
-    $("chips").innerHTML = cats.map((c) => `<button type="button" data-cat="${esc(c)}" aria-pressed="${c === state.cat}">${esc(c)}${c === "All" ? "" : ` <span aria-hidden="true">${counts[c]}</span>`}</button>`).join("");
+    const counts = countBy(state.items, "c");
+    const cats = state.cats.filter((c) => counts[c]).concat(Object.keys(counts).filter((c) => !state.cats.includes(c)));
+    $("chips").innerHTML = [`<button type="button" data-cat="All" aria-pressed="${state.cat === "All"}">All <span aria-hidden="true">${state.items.length}</span></button>`]
+      .concat(cats.map((c) => `<button type="button" data-cat="${esc(c)}" aria-pressed="${c === state.cat}">${esc(c)} <span aria-hidden="true">${counts[c]}</span></button>`)).join("");
+    const inCat = state.cat === "All" ? [] : state.items.filter((r) => r.c === state.cat);
+    const subs = countBy(inCat.filter((r) => r.t), "t");
+    const subNames = Object.keys(subs).sort((a, b) => subs[b] - subs[a]);
+    $("subs").hidden = subNames.length < 2;
+    $("subs").innerHTML = subNames.length < 2 ? "" : [`<button type="button" data-sub="" aria-pressed="${!state.sub}">All ${esc(state.cat.toLowerCase())}</button>`]
+      .concat(subNames.map((s) => `<button type="button" data-sub="${esc(s)}" aria-pressed="${s === state.sub}">${esc(s)} <span aria-hidden="true">${subs[s]}</span></button>`)).join("");
   }
-  $("chips").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-cat]"); if (!b) return;
-    state.cat = b.dataset.cat; state.shown = 30; renderChips(); renderList();
+  function pickCategory(cat) { state.cat = cat; state.sub = ""; state.shown = 30; renderChips(); renderList(); }
+  $("chips").addEventListener("click", (e) => { const b = e.target.closest("button[data-cat]"); if (b) pickCategory(b.dataset.cat); });
+  $("subs").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-sub]"); if (!b) return;
+    state.sub = b.dataset.sub; state.shown = 30; renderChips(); renderList();
   });
+  $("list").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-see]"); if (!b) return;
+    pickCategory(b.dataset.see); $("chips").scrollIntoView({ block: "nearest" });
+  });
+  $("sort").addEventListener("change", () => { state.sort = $("sort").value; store.set("dd-sort", state.sort); state.shown = 30; renderList(); });
   let qTimer; $("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.q = $("q").value.trim().toLowerCase(); state.shown = 30; renderList(); }, 150); });
   $("more").addEventListener("click", () => { state.shown += 40; renderList(); });
+
+  function dealRow(r, showCat) {
+    const off = pctOff(r), unit = unitText(r);
+    return `<article class="deal">
+      <div class="tag"><div class="now">${money(r.p)}</div>${r.w ? `<div class="was">${money(r.w)}</div>` : ""}${off ? `<div class="off">${off}% OFF</div>` : ""}</div>
+      <div><div class="name">${esc(r.n)}</div>
+      <div class="info">${[showCat ? esc(r.t || r.c) : "", esc(r.z || ""), unit ? `<span class="unit">${esc(unit)}</span>` : "", esc(r.o || "")].filter(Boolean).join(" · ")}${r.u ? ` · <a href="${esc(r.u)}" target="_blank" rel="noopener">Open at ${esc(r.s)} ↗</a>` : ""}</div></div>
+    </article>`;
+  }
 
   function renderList() {
     if (!state.items.length) return;
     const words = state.q.split(/\s+/).filter(Boolean);
-    const rows = state.items.filter((r) => (state.cat === "All" || r.c === state.cat) && words.every((w) => r.n.toLowerCase().includes(w)));
+    const sort = SORTS[state.sort] || SORTS.off;
+    if (state.cat === "All" && !words.length) {
+      // Overview: every category with its best few deals.
+      const counts = countBy(state.items, "c");
+      const cats = state.cats.filter((c) => counts[c]).concat(Object.keys(counts).filter((c) => !state.cats.includes(c)));
+      $("shelfCount").textContent = `${state.items.length} items in ${cats.length} categories`;
+      $("list").innerHTML = cats.map((c) => {
+        const rows = state.items.filter((r) => r.c === c).sort(sort);
+        return `<section class="group" aria-label="${esc(c)}">
+          <div class="group-head"><h3>${esc(c)}</h3><button type="button" class="see" data-see="${esc(c)}">See all ${rows.length} →</button></div>
+          ${rows.slice(0, 3).map((r) => dealRow(r, true)).join("")}
+        </section>`;
+      }).join("");
+      $("more").hidden = true;
+      return;
+    }
+    const rows = state.items
+      .filter((r) => (state.cat === "All" || r.c === state.cat) && (!state.sub || r.t === state.sub) && words.every((w) => r.n.toLowerCase().includes(w)))
+      .sort(sort);
     $("shelfCount").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"}`;
-    $("list").innerHTML = rows.length ? rows.slice(0, state.shown).map((r) => {
-      const off = pctOff(r);
-      return `<article class="deal">
-        <div class="tag"><div class="now">${money(r.p)}</div>${r.w ? `<div class="was">${money(r.w)}</div>` : ""}${off ? `<div class="off">${off}% OFF</div>` : ""}</div>
-        <div><div class="name">${esc(r.n)}</div>
-        <div class="info">${esc(r.s)}${r.z ? " · " + esc(r.z) : ""}${r.o ? " · " + esc(r.o) : ""}${r.u ? ` · <a href="${esc(r.u)}" target="_blank" rel="noopener">Open at ${esc(r.s)} ↗</a>` : ""}</div></div>
-      </article>`;
-    }).join("") : `<div class="empty">No specials match “${esc(state.q)}”. Try another word or category.</div>`;
+    $("list").innerHTML = rows.length ? rows.slice(0, state.shown).map((r) => dealRow(r, state.cat === "All" || !state.sub)).join("")
+      : `<div class="empty">No specials match${state.q ? ` “${esc(state.q)}”` : ""} here. Try another word or category.</div>`;
     $("more").hidden = rows.length <= state.shown;
   }
 
   function showWeek(doc) {
     state.week = doc; state.items = Array.isArray(doc.items) ? doc.items.filter((r) => r && typeof r.n === "string" && typeof r.p === "number") : [];
+    if (Array.isArray(doc.categories) && doc.categories.length) state.cats = doc.categories.map(String);
+    if (state.cat !== "All" && !state.items.some((r) => r.c === state.cat)) { state.cat = "All"; state.sub = ""; }
     const when = doc.updated ? new Date(doc.updated).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) : "recently";
     $("meta").textContent = `${state.items.length} dinner specials from ${(doc.stores || []).join(" & ") || "the supermarkets"} · updated ${when}`;
     renderChips(); renderList(); updatePlanButton();
@@ -282,19 +458,24 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
     const recipes = plan.recipes.map((r) => {
       const sale = (Array.isArray(r.sale) ? r.sale : []).map((s) => ({ ...priceLine(s, lookup(s, chosen), num(s.packs) || 1), use: String(s.use || s.qty || "") }));
       const other = (Array.isArray(r.other) ? r.other : []).map((o) => (typeof o === "string" ? { item: o, cost: 0 } : { item: String(o.item || ""), cost: num(o.cost) }));
-      const serves = Math.round(num(r.servings)) || defaultServes;
+      // A batch dish covers several nights; its servings already include every night.
+      const nightsCovered = Math.min(7, Math.max(1, Math.round(num(r.nights)) || 1));
+      const serves = Math.round(num(r.servings)) || defaultServes * nightsCovered;
       const otherCost = round2(other.reduce((a, o) => a + o.cost, 0));
       const total = round2(sale.reduce((a, s) => a + s.cost, 0) + otherCost);
       const fullTotal = round2(sale.reduce((a, s) => a + s.fullCost, 0) + otherCost);
       return { title: String(r.title || "Dinner"), description: String(r.description || ""), minutes: num(r.minutes), servings: serves,
-               steps: (Array.isArray(r.steps) ? r.steps : []).map(String), sale, other, otherCost, total, fullTotal, perServe: round2(total / serves) };
+               nights: nightsCovered, ideas: (Array.isArray(r.ideas) ? r.ideas : []).map(String).slice(0, 7), storage: String(r.storage || ""),
+               steps: (Array.isArray(r.steps) ? r.steps : []).map(String), sale, other, otherCost, total, fullTotal,
+               perServe: round2(total / serves), perNight: round2(total / nightsCovered) };
     });
     const shopping = (Array.isArray(plan.shopping) ? plan.shopping : []).map((s) => priceLine(s, lookup(s, chosen), Math.max(1, Math.ceil(num(s.packs) || 1))));
     const sum = (arr, k) => round2(arr.reduce((a, x) => a + x[k], 0));
     const serves = recipes.reduce((a, r) => a + r.servings, 0);
+    const nightsTotal = recipes.reduce((a, r) => a + r.nights, 0);
     const totals = { meals: sum(recipes, "total"), mealsFull: sum(recipes, "fullTotal"), checkout: sum(shopping, "cost"),
-                     checkoutFull: sum(shopping, "fullCost"), extras: sum(recipes, "otherCost"), dinners: recipes.length, serves };
-    totals.perDinner = recipes.length ? round2(totals.meals / recipes.length) : 0;
+                     checkoutFull: sum(shopping, "fullCost"), extras: sum(recipes, "otherCost"), dinners: nightsTotal, cooks: recipes.length, serves };
+    totals.perDinner = nightsTotal ? round2(totals.meals / nightsTotal) : 0;
     totals.perServe = serves ? round2(totals.meals / serves) : 0;
     return { recipes, shopping, totals, notes: String(plan.notes || ""), costed: true };
   }
@@ -310,25 +491,37 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
     const t = p.totals, save = round2(t.mealsFull - t.meals), coSave = round2(t.checkoutFull - t.checkout);
     const made = saved.made ? new Date(saved.made).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "";
     const stores = [...new Set(p.shopping.map((s) => s.store))];
+    const style = saved.style ? styleOf(saved.style) : null;
+    const extras = (saved.extras || []).map((id) => EXTRAS.find((x) => x.id === id)?.name).filter(Boolean);
+    const isBatch = p.recipes.some((r) => (r.nights || 1) > 1);
+    let night = 0;
+    const nightLabel = (count) => {
+      const a = night, b = night + count - 1; night += count;
+      const name = (i) => nights[i % 7];
+      return count > 1 ? `${name(a)}–${name(b)}` : name(a);
+    };
     $("plan").innerHTML = `
       <div class="plan-head"><h2>This week's dinners</h2>${made ? `<span class="totals">planned ${made}</span>` : ""}</div>
+      ${style ? `<div class="plan-tags"><span class="ptag">${esc(style.name)}</span>${extras.map((x) => `<span class="ptag light">${esc(x)}</span>`).join("")}</div>` : ""}
       <div class="bill" aria-label="Cost summary">
-        <div class="fig main"><span class="lbl">${t.dinners} dinners cost</span><span class="val">${money(t.meals)}</span><span class="small">${money(t.perDinner)} a dinner · ${money(t.perServe)} a serve</span></div>
+        <div class="fig main"><span class="lbl">${t.dinners} night${t.dinners === 1 ? "" : "s"} cost${isBatch ? ` · ${t.cooks} cook${t.cooks === 1 ? "" : "s"}` : ""}</span><span class="val">${money(t.meals)}</span><span class="small">${money(t.perDinner)} a night · ${money(t.perServe)} a serve</span></div>
         <div class="fig"><span class="lbl">At full price</span><span class="val struck">${money(t.mealsFull)}</span><span class="small">same meals, no specials</span></div>
         <div class="fig save"><span class="lbl">You save</span><span class="val">${money(save)}</span><span class="small">${pct(save, t.mealsFull)}% off the full price</span></div>
       </div>
       <p class="fine">Dinner costs count only what each meal uses. Prices for specials are this week's ${esc(stores.join(" & ") || "store")} prices; other ingredients (${money(t.extras)} across the week) are Claude's estimates and are the same at full price.</p>
-      ${p.recipes.map((r, i) => `
+      ${p.recipes.map((r, i) => { const n = r.nights || 1, rs = round2(r.fullTotal - r.total); return `
         <details class="recipe"${i === 0 ? " open" : ""}>
-          <summary><span class="night">${nights[i] || "Day " + (i + 1)}</span><h3>${esc(r.title)}</h3>
-            <span class="sub">${esc(r.description)}<br>${[r.minutes ? r.minutes + " min" : "", "serves " + r.servings].filter(Boolean).join(" · ")}</span>
-            <span class="price-row"><b>${money(r.total)}</b> · ${money(r.perServe)} a serve · <s>${money(r.fullTotal)}</s> full price</span></summary>
+          <summary><span class="night${n > 1 ? " multi" : ""}">${nightLabel(n)}</span><h3>${esc(r.title)}</h3>
+            <span class="sub">${esc(r.description)}<br>${[n > 1 ? `cook once, eat ${n} nights` : "", r.minutes ? r.minutes + " min" : "", "serves " + r.servings].filter(Boolean).join(" · ")}</span>
+            <span class="price-row"><b>${money(r.total)}</b>${n > 1 ? ` · ${money(r.perNight || round2(r.total / n))} a night` : ""} · ${money(r.perServe)} a serve · <s>${money(r.fullTotal)}</s>${rs > 0 ? ` <span class="save-t">save ${pct(rs, r.fullTotal)}%</span>` : ""}</span></summary>
           <div class="body">
+            ${r.ideas && r.ideas.length ? `<div><h4>Each night</h4><ul>${r.ideas.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+            ${r.storage ? `<p class="fine"><b>Keeping it:</b> ${esc(r.storage)}</p>` : ""}
             <div><h4>On special</h4><ul class="costs">${r.sale.map((s) => `<li><span>${esc(s.use)}${s.use ? " · " : ""}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.item)} ↗</a>` : esc(s.item)} <span class="onsale">${esc(s.store)} ${money(s.price)}${s.full > s.price ? ` <s>${money(s.full)}</s>` : ""}</span>${s.packs !== 1 ? ` <span class="muted">× ${s.packs}</span>` : ""}</span><span class="amt">${money(s.cost)}</span></li>`).join("")}</ul></div>
             <div><h4>You'll also need</h4><ul class="costs">${r.other.map((o) => `<li><span>${esc(o.item)}</span><span class="amt">${o.cost ? "~" + money(o.cost) : ""}</span></li>`).join("")}</ul></div>
             <div><h4>Method</h4><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>
           </div>
-        </details>`).join("")}
+        </details>`; }).join("")}
       ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<div class="shop-row"><label for="tick-${j}"><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li-text">${it.packs} × ${esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span></label><span class="amt">${money(it.cost)}</span>${it.url ? `<a class="open" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.item)} at ${esc(it.store)}">Open ↗</a>` : ""}</div>`).join("")}</div>`).join("")}
         <div class="go"><button class="btn ghost" id="copyList" type="button">Copy shopping list</button><span class="status" id="copyStatus" role="status"></span></div>
         <p class="fine">Tick items off as you go. Tap <b>Open ↗</b> to see an item at the store and use Add to trolley there (sign in to your store account first). If a link doesn't open in your Claude app, copy the list and search for the items in the store's app.</p>
@@ -364,31 +557,56 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
     if (!state.busy && !state.sample && state.items.length) $("status").textContent = "Open this page in the Claude app or claude.ai, signed in, to plan dinners.";
   }
 
-  function buildPrompt() {
-    const rank = { "Meat & seafood": 0, "Fruit & veg": 1, "Dairy, eggs & tofu": 2, "Pantry": 3 };
-    const pick = [...state.items].sort((a, b) => (rank[a.c] ?? 4) - (rank[b.c] ?? 4) || pctOff(b) - pctOff(a));
-    const byCat = {}; const chosen = [];
-    for (const r of pick) { const n = (byCat[r.c] = (byCat[r.c] || 0) + 1); if (n <= (r.c === "Meat & seafood" ? 90 : 50)) chosen.push(r); }
-    const lines = chosen.map((r, i) => `#${i} [${r.s}] ${r.n}${r.z ? ` (${r.z})` : ""} ${money(r.p)}${r.w ? ` (was ${money(r.w)})` : ""}${r.o ? ` - ${r.o}` : ""}`).join("\n");
-    const dinners = Number($("dinners").textContent), servings = Number($("servings").textContent);
-    const minutes = $("minutes").value, prefs = $("prefs").value.trim();
-    const prompt = `You are a practical home cook in Australia planning weeknight dinners around this week's supermarket specials.
+  // Which specials Claude sees, in what order, depends on the plan style.
+  const CAT_RANK = { "Meat": 0, "Seafood": 0, "Vegetables": 1, "Dairy, eggs & tofu": 2, "Pasta, rice & noodles": 2, "Bread & wraps": 3, "Pantry": 3, "Ready meals & sides": 5, "Other": 6 };
+  const CAT_CAP = { "Meat": 70, "Seafood": 40, "Vegetables": 40, "Dairy, eggs & tofu": 30, "Pasta, rice & noodles": 35, "Bread & wraps": 10, "Pantry": 35, "Ready meals & sides": 10, "Other": 5 };
+  const perKg = (r) => { const u = unitInfo(r.k); return u && u.u !== "each" ? u.v : Infinity; };
+  function chooseSpecials(style) {
+    let pool = state.items;
+    if (style.noMeat) pool = pool.filter((r) => r.c !== "Meat" && r.c !== "Seafood");
+    if (style.noReady) pool = pool.filter((r) => r.c !== "Ready meals & sides");
+    const within =
+      style.id === "cheapmeat" ? (a, b) => perKg(a) - perKg(b) || a.p - b.p :
+      style.id === "value" ? SORTS.save :
+      SORTS.off;
+    const sorted = [...pool].sort((a, b) => (CAT_RANK[a.c] ?? 4) - (CAT_RANK[b.c] ?? 4) || within(a, b));
+    const seen = {}, chosen = [];
+    for (const r of sorted) { const n = (seen[r.c] = (seen[r.c] || 0) + 1); if (n <= (CAT_CAP[r.c] ?? 20)) chosen.push(r); }
+    return chosen;
+  }
 
-SPECIALS (only these count as "on special"; each has an id like #12):
+  function buildPrompt() {
+    const style = styleOf(state.style);
+    const chosen = chooseSpecials(style);
+    const lines = chosen.map((r, i) => {
+      const unit = unitText(r);
+      return `#${i} [${r.c}${r.t && r.t !== r.c ? " / " + r.t : ""}] ${r.n}${r.z ? ` (${r.z})` : ""} ${money(r.p)}${r.w ? ` (was ${money(r.w)}, ${pctOff(r)}% off)` : ""}${unit ? ` · ${unit}` : ""}${r.o ? ` - ${r.o}` : ""}`;
+    }).join("\n");
+    const nightsN = Number($("dinners").textContent), servings = Number($("servings").textContent);
+    const minutes = $("minutes").value, prefs = $("prefs").value.trim();
+    const extras = EXTRAS.filter((x) => state.extras.includes(x.id)).map((x) => "- " + x.prompt).join("\n");
+    const cooks = Math.max(1, Math.min(nightsN, Math.round(nightsN / 2.5)));
+    const task = style.batch
+      ? `TASK: Cover ${nightsN} nights for ${servings} people with about ${cooks} big-batch dish${cooks === 1 ? "" : "es"}. Each dish is cooked once in a large quantity and eaten on 2 or 3 nights in a row; the "nights" values must add up to exactly ${nightsN}. A dish's "servings" = its nights × ${servings}. Choose dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps 3 days in the fridge, so freeze anything for later nights.`
+      : `TASK: Plan ${nightsN} different dinners, each serving ${servings}; each has "nights": 1.`;
+    const prompt = `You are a practical home cook in Australia planning dinners around this week's supermarket specials.
+
+SPECIALS (only these count as "on special"; each has an id like #12, its category, price, any "was" price and price per kg or litre):
 ${lines}
 
-TASK: Plan ${dinners} different dinners, each serving ${servings}.${minutes ? ` Each must take no more than ${minutes} minutes in total.` : ""}${prefs ? `\nHousehold preferences: ${prefs}` : ""}
-Build each dinner around one or more specials, favouring the biggest real savings and ingredients that can be shared across meals so nothing is wasted. Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
+${task}${minutes && style.id !== "quick" ? `\nEach dinner (or each batch cook) must take no more than ${minutes} minutes of hands-on cooking.` : ""}
+PLAN STYLE: ${style.prompt}${extras ? `\nALSO:\n${extras}` : ""}${prefs ? `\nHOUSEHOLD NOTES (these win over everything else): ${prefs}` : ""}
+Use ingredients that can be shared across dinners so nothing is wasted. Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
 
 COSTING (the page does the maths, so be precise with these numbers):
-- In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS dinner uses (a fraction is fine, e.g. 0.5 when the other half goes into another dinner).
+- In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS recipe uses (a fraction is fine, e.g. 0.5 when the other half goes into another recipe).
 - "other" lists every non-special ingredient with "cost" = your AUD estimate for just the amount used, at typical Australian supermarket prices (pantry staples like oil, salt and spices cost cents).
-- "shopping" lists the whole packs of specials to buy for all the dinners together ("packs" is a whole number). For multibuy deals ("Buy 2 for..."), buy the deal quantity when it's worth it.
+- "shopping" lists the whole packs of specials to buy for all the recipes together ("packs" is a whole number). For multibuy deals ("Buy 2 for..."), buy the deal quantity when it's worth it.
 
 Reply with only JSON in exactly this shape:
-{"recipes":[{"title":"","description":"one sentence","servings":${servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips (freezing, leftovers)"}
-Keep each recipe to at most 8 steps.`;
-    return { prompt, chosen, servings };
+{"recipes":[{"title":"","description":"one sentence","nights":${style.batch ? 3 : 1},"servings":${style.batch ? 3 * servings : servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]${style.batch ? `,"ideas":["Night 2: ...","Night 3: ..."],"storage":"..."` : ""}}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips"}
+Keep each recipe to at most ${style.batch ? 10 : 8} steps.`;
+    return { prompt, chosen, servings, style: style.id, extras: [...state.extras] };
   }
 
   $("planBtn").addEventListener("click", async () => {
@@ -403,7 +621,7 @@ Keep each recipe to at most 8 steps.`;
       });
       if (!raw || !Array.isArray(raw.recipes) || !raw.recipes.length) throw { code: "bad_shape", message: "The reply had no recipes." };
       const plan = costPlan(raw, ask.chosen, ask.servings);
-      const saved = { plan, made: new Date().toISOString(), dealsUpdated: state.week?.updated || null };
+      const saved = { plan, made: new Date().toISOString(), dealsUpdated: state.week?.updated || null, style: ask.style, extras: ask.extras };
       renderPlan(saved);
       $("status").textContent = "Done. Your plan is saved below.";
       if (state.db) { try { await state.db.doc("plans/latest").set(saved); } catch { $("status").textContent = "Done. (Couldn't save the plan for next time.)"; } }

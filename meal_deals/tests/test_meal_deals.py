@@ -126,4 +126,44 @@ def test_export_filters_junk_and_categorises():
     ]
     doc = build_doc(items)
     assert [r["n"] for r in doc["items"]] == ["Coles Beef Regular Mince", "Birds Eye Crinkle Cut Frozen Potato Chips"]
-    assert doc["items"][0]["c"] == "Meat & seafood" and doc["items"][1]["c"] == "Fruit & veg"
+    assert (doc["items"][0]["c"], doc["items"][0]["t"]) == ("Meat", "Mince")
+    assert (doc["items"][1]["c"], doc["items"][1]["t"]) == ("Ready meals & sides", "Chips & sides")
+
+
+import pytest
+
+from meal_deals.categories import classify
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("Coles RSPCA Approved Chicken Breast Diced", ("Meat", "Chicken")),
+    ("Coles Pork Scotch Steak With Rosemary & Honey Butter", ("Meat", "Pork")),
+    ("Coles No Added Hormone Beef Oyster Blade Steak", ("Meat", "Beef")),
+    ("Coles No Added Hormone Beef Regular Mince", ("Meat", "Mince")),
+    ("Coles Finest Italian Style Pork Sausages", ("Meat", "Sausages")),
+    ("Coles Lamb Loin Chops (11x5)", ("Meat", "Lamb")),
+    ("Coles Tasmanian Salmon Portion Skin On", ("Seafood", "Fish")),
+    ("KB Tempura Prawns", ("Seafood", "Crumbed & frozen")),
+    ("Coles Prawns Raw Peeled", ("Seafood", "Prawns & shellfish")),
+    ("555 Sardines In Tomato Sauce", ("Seafood", "Tinned")),
+    ("Coles Broccoli Medium", ("Vegetables", "Fresh")),
+    ("McCain Frozen Peas Corn & Carrots", ("Vegetables", "Frozen")),
+    ("Ardmona Diced Tomatoes", ("Pantry", "Tins & jars")),
+    ("Coles Organic Coconut Milk", ("Pantry", "Tins & jars")),
+    ("Capsicana Argentinian Style Sizzling Steak Seasoning Mix", ("Pantry", "Sauces & seasonings")),
+    ("Fountain Steak Sauce", ("Pantry", "Sauces & seasonings")),
+    ("De Zhuang Oyster Mushroom Sauce", ("Pantry", "Sauces & seasonings")),
+    ("Barilla Pasta Penne Rigate", ("Pasta, rice & noodles", "Pasta")),
+    ("Rana Ricotta & Spinach Tortellini", ("Pasta, rice & noodles", "Fresh pasta")),
+    ("Coles Asia Egg Noodles Thick", ("Pasta, rice & noodles", "Noodles")),
+    ("Sunrice Basmati Rice", ("Pasta, rice & noodles", "Rice & grains")),
+    ("Pace Farm Eggs For Everyone Free Range 12 Pack", ("Dairy, eggs & tofu", "Eggs")),
+    ("American Melt Swiss Burger Cheese Slices", ("Dairy, eggs & tofu", "Cheese")),
+    ("Tly Medium Firm Tofu", ("Dairy, eggs & tofu", "Tofu")),
+    ("Helga's Spinach & Garden Herb Wraps 7 Pack", ("Bread & wraps", "Bread & wraps")),
+    ("Herbert Adams Slow Cooked Beef Pie Caramelised Onion With Cabernet Sauvignon", ("Ready meals & sides", "Pies & pastries")),
+    ("KB's Finest Prawn & Pork Gyoza", ("Ready meals & sides", "Dumplings & finger food")),
+    ("Birds Eye Golden Crunch Crinkle Cut Frozen Potato Chips", ("Ready meals & sides", "Chips & sides")),
+])
+def test_classify(name, expected):
+    assert classify(name) == expected
