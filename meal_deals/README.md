@@ -74,8 +74,10 @@ categories and sub-types from `categories.py`, with a price per kg where the sto
 The planner offers plan styles (balanced, best bang for buck, cheapest with meat, quick &
 easy, healthy, vegetarian), optional extras (kid friendly, lunches, etc.), and how many
 meals to cook, how many nights each meal lasts, and how many people eat each night.
-"Find meal ideas" asks Claude directly from the page (no API key needed) for about twice as
-many options as meals wanted; you pick the ones you like and the page builds the plan, costs
+"Find meal ideas" asks Claude directly from the page (no API key needed) for at least 10
+options, split across several searches run side by side (chicken, beef & lamb, pork &
+sausages, seafood & vegetarian; or three vegetarian focuses), with a top-up round if they
+come back short; you pick the ones you like and the page builds the plan, costs
 and shopping list from your picks, adding up shared packs and only giving multibuy prices
 for full sets. Ideas and picks are saved to `plans/latest`, so they show on every device.
 

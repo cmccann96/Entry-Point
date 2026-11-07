@@ -584,7 +584,12 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
 
   function renderIdeas() {
     const I = state.ideas;
-    if (!I || !I.candidates.length) { $("ideas").hidden = true; return; }
+    if (!I) { $("ideas").hidden = true; return; }
+    if (!I.candidates.length) {
+      $("ideas").hidden = !state.busy;
+      $("ideas").innerHTML = `<div class="plan-head"><h2>Pick your meals</h2></div><div class="empty">Finding meal ideas. They'll appear here as each search comes back.</div>`;
+      return;
+    }
     const picked = new Set(I.selected), want = I.meals || 0;
     const style = I.style ? styleOf(I.style) : null;
     const extras = (I.extras || []).map((id) => EXTRAS.find((x) => x.id === id)?.name).filter(Boolean);
@@ -613,7 +618,7 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
 
   function renderPlanFromSelection() {
     const I = state.ideas;
-    if (!I) { $("plan").hidden = true; return; }
+    if (!I || !I.candidates.length) { $("plan").hidden = true; return; }
     const recipes = selectedRecipes();
     if (!recipes.length) {
       $("plan").hidden = false;
@@ -746,8 +751,9 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
   const CAT_RANK = { "Meat": 0, "Seafood": 0, "Vegetables": 1, "Dairy, eggs & tofu": 2, "Pasta, rice & noodles": 2, "Bread & wraps": 3, "Pantry": 3, "Ready meals & sides": 5, "Other": 6 };
   const CAT_CAP = { "Meat": 70, "Seafood": 40, "Vegetables": 40, "Dairy, eggs & tofu": 30, "Pasta, rice & noodles": 35, "Bread & wraps": 10, "Pantry": 35, "Ready meals & sides": 10, "Other": 5 };
   const perKg = (r) => { const u = unitInfo(r.k); return u && u.u !== "each" ? u.v : Infinity; };
-  function chooseSpecials(style) {
+  function chooseSpecials(style, keep) {
     let pool = state.items;
+    if (keep) pool = pool.filter(keep);
     if (style.noMeat) pool = pool.filter((r) => r.c !== "Meat" && r.c !== "Seafood");
     if (style.noReady) pool = pool.filter((r) => r.c !== "Ready meals & sides");
     const within =
@@ -760,13 +766,32 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     return chosen;
   }
 
-  // How many options to offer: about twice the meals wanted, at least 3 more, at most 12.
-  const ideaCount = (meals, source) => Math.min(source === "rte" ? 12 : 10, Math.max(meals + 3, meals * 2));
+  // Ideas come from several smaller searches run side by side, each with its own focus, so one short
+  // answer can't leave you with only a couple of options, and the mix stays varied.
+  const isProtein = (r) => r.c === "Meat" || r.c === "Seafood";
+  const meatOf = (types) => (r) => !isProtein(r) || (r.c === "Meat" && (!r.t || types.includes(r.t)));
+  function lanesFor(style) {
+    if (style.noMeat) return [
+      { id: "eggs", focus: "Eggs, tofu, cheese or legumes as the main protein.", keep: null },
+      { id: "carbs", focus: "Pasta, rice or noodle dishes.", keep: null },
+      { id: "veg", focus: "Curries, soups, stews and bakes built on vegetables and legumes.", keep: null },
+    ];
+    return [
+      { id: "chicken", focus: "Main protein: chicken (or turkey or duck).", keep: meatOf(["Chicken"]) },
+      { id: "beef", focus: "Main protein: beef or lamb (mince counts).", keep: meatOf(["Beef", "Lamb", "Mince", "Burgers"]) },
+      { id: "pork", focus: "Main protein: pork, sausages or bacon (pork mince counts).", keep: meatOf(["Pork", "Sausages", "Bacon & deli", "Mince", "Other meat"]) },
+      style.id === "cheapmeat"
+        ? { id: "sea", focus: "Main protein: seafood (tinned or frozen fish counts).", keep: (r) => r.c !== "Meat" }
+        : { id: "seaveg", focus: "Seafood dishes, plus a vegetarian option or two.", keep: (r) => r.c !== "Meat" },
+    ];
+  }
+  // How many ideas to look for: at least 10, more for bigger plans, at most 16.
+  const ideaTarget = (meals) => Math.min(16, Math.max(10, meals * 2 + 2));
 
   // `opts` are the settings to plan with: the form's, or (for "more ideas") the ones the current ideas were made with.
   function buildPrompt(opts) {
     const style = styleOf(opts.style);
-    const chosen = chooseSpecials(style);
+    const chosen = chooseSpecials(style, opts.lane && opts.lane.keep);
     const lines = chosen.map((r, i) => {
       const unit = unitText(r);
       return `#${i} [${r.c}${r.t && r.t !== r.c ? " / " + r.t : ""}] ${r.n}${r.z ? ` (${r.z})` : ""} ${money(r.p)}${r.w ? ` (was ${money(r.w)}, ${pctOff(r)}% off)` : ""}${unit ? ` · ${unit}` : ""}${r.o ? ` - ${r.o}` : ""}`;
@@ -777,9 +802,10 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     const batch = each > 1;
     const who = `${servings} ${servings === 1 ? "person" : "people"}`;
     const task = (batch
-      ? `TASK: Suggest exactly ${count} different meal options; the household will pick ${meals} of them. Each option is cooked once in a big batch and eaten on ${each} nights in a row by ${who}, so every recipe has "nights": ${each} and "servings": ${each * servings}. Scale every quantity and pack count for all ${each * servings} serves. Only suggest dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps about 3 days in the fridge${each > 3 ? `, so say which nights' portions to freeze straight after cooking` : ", so say what to freeze if plans change"}.`
-      : `TASK: Suggest exactly ${count} different dinner options, each serving ${who}; the household will pick ${meals} of them. Each recipe has "nights": 1.`) +
-      ` Make the options genuinely different from each other (main protein, cuisine, cooking method) with a range of costs, and make each one stand on its own, because any combination might be picked.` +
+      ? `TASK: Suggest exactly ${count} different meal options for the household to choose from. Each option is cooked once in a big batch and eaten on ${each} nights in a row by ${who}, so every recipe has "nights": ${each} and "servings": ${each * servings}. Scale every quantity and pack count for all ${each * servings} serves. Only suggest dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps about 3 days in the fridge${each > 3 ? `, so say which nights' portions to freeze straight after cooking` : ", so say what to freeze if plans change"}.`
+      : `TASK: Suggest exactly ${count} different dinner options for the household to choose from, each serving ${who}. Each recipe has "nights": 1.`) +
+      (opts.lane ? `\nFOCUS FOR THIS LIST: ${opts.lane.focus} (Other searches cover the other proteins. If the household notes rule this focus out, suggest the closest suitable dishes instead.)` : "") +
+      `\nMake the options genuinely different from each other (cuisine, cooking method, cost) and make each one stand on its own, because any combination might be picked.` +
       (opts.exclude.length ? `\nThey have already seen these, so suggest different dishes: ${opts.exclude.join("; ")}.` : "");
     const rte = opts.source === "rte";
     const sourceRule = rte
@@ -802,15 +828,13 @@ COSTING (the page does the maths, so be precise with these numbers):
 - In each recipe's "sale", "id" is the special's number and "packs" is how much of one pack THIS recipe uses (a fraction is fine, e.g. 0.5 of a 1kg pack for 500g).
 - "other" lists every non-special ingredient with "cost" = your AUD estimate for just the amount used, at typical Australian supermarket prices (pantry staples like oil, salt and spices cost cents).
 
-Reply with only JSON in exactly this shape, with ${count} recipes:
+Reply with only JSON in this shape. The "recipes" array must hold exactly ${count} recipes (the page counts them):
 {"recipes":[{${recipeShape}${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"notes":"one or two short tips"}`;
     return { prompt, chosen, servings, each, meals, count, style: style.id, extras: [...opts.extras], source: opts.source };
   }
 
   function formSettings() {
-    const meals = stepVal("meals");
-    return { style: state.style, extras: [...state.extras], source: state.source, meals, each: stepVal("each"), servings: stepVal("servings"),
-             count: ideaCount(meals, state.source), exclude: [] };
+    return { style: state.style, extras: [...state.extras], source: state.source, meals: stepVal("meals"), each: stepVal("each"), servings: stepVal("servings") };
   }
 
   $("planBtn").addEventListener("click", () => findIdeas(false));
@@ -818,48 +842,79 @@ Reply with only JSON in exactly this shape, with ${count} recipes:
   async function findIdeas(more) {
     if (!state.sample || state.busy) return;
     const prev = more ? state.ideas : null;
-    const opts = prev
-      ? { style: prev.style, extras: prev.extras || [], source: prev.source || "rte", meals: prev.meals, each: prev.each || 1, servings: prev.servings || stepVal("servings"),
-          count: Math.min(8, Math.max(4, (prev.meals || 3) + 1)), exclude: prev.candidates.map((c) => c.rteTitle || c.title) }
+    const base = prev
+      ? { style: prev.style, extras: prev.extras || [], source: prev.source || "rte", meals: prev.meals, each: prev.each || 1, servings: prev.servings || stepVal("servings") }
       : formSettings();
+    const style = styleOf(base.style);
+    let lanes = lanesFor(style);
+    // "More ideas" asks two of the focuses, taking turns so repeated taps cover them all.
+    if (more) { const t = (state.moreTurn = ((state.moreTurn || 0) + 2) % lanes.length); lanes = [lanes[t], lanes[(t + 1) % lanes.length]]; }
+    const target = more ? 6 : ideaTarget(base.meals);
+    const per = Math.max(2, Math.ceil(target / lanes.length));
     const status = more ? $("moreStatus") : $("status");
-    state.busy = true; updatePlanButton(); if ($("moreIdeas")) $("moreIdeas").disabled = true;
-    status.classList.remove("err"); status.textContent = more ? "Finding more ideas…" : "Claude is finding meal ideas…";
-    try {
-      const ask = buildPrompt(opts);
-      const raw = await state.sample.json(ask.prompt, {
-        modelTier: "default", cache: false,
-        onText: ({ text }) => { status.textContent = text ? `Writing ideas… (${Math.round(text.length / 100) / 10}k characters)` : "Claude is thinking…"; },
-      });
-      if (!raw || !Array.isArray(raw.recipes) || !raw.recipes.length) throw { code: "bad_shape", message: "The reply had no recipes." };
-      const stamp = Date.now().toString(36);
-      const fresh = raw.recipes.map((r, i) => costRecipe(r, ask, `${stamp}-${i}`));
-      if (prev) {
-        prev.candidates = prev.candidates.concat(fresh);
-      } else {
-        state.ideas = { kind: "ideas", candidates: fresh, selected: [], made: new Date().toISOString(), dealsUpdated: state.week?.updated || null,
-                        style: ask.style, extras: ask.extras, source: ask.source, meals: ask.meals, each: ask.each, servings: ask.servings, notes: String(raw.notes || "") };
-      }
-      renderAll();
-      saveChain = saveChain.then(saveIdeas);
-      if (more) { $("moreStatus").textContent = `Added ${fresh.length} more ideas.`; }
-      else {
-        status.textContent = `${fresh.length} ideas ready. Pick the ones you like.`;
-        $("ideas").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-      }
-    } catch (e) {
-      const el = more && $("moreStatus") ? $("moreStatus") : status;
-      el.classList.add("err");
-      const code = e && e.code;
-      el.textContent =
-        code === "not_granted" ? "Planning needs permission to ask Claude. Allow it from this page's permissions to try again." :
-        code === "rate_limited" ? "You've hit your Claude usage limit for now. Try again later." :
-        code === "invalid_json" || code === "bad_shape" ? "Claude's answer came back incomplete. Try again, or ask for fewer meals." :
-        "Something went wrong while finding ideas. Try again.";
-    } finally {
-      state.busy = false; updatePlanButton();
-      if ($("moreIdeas")) $("moreIdeas").disabled = !state.sample;
+    const exclude = prev ? prev.candidates.map((c) => c.rteTitle || c.title) : [];
+
+    if (!prev) {
+      state.ideas = { kind: "ideas", candidates: [], selected: [], made: new Date().toISOString(), dealsUpdated: state.week?.updated || null,
+                      style: base.style, extras: base.extras, source: base.source, meals: base.meals, each: base.each, servings: base.servings, notes: "" };
     }
+    const I = state.ideas;
+    const seen = new Set(I.candidates.map((c) => norm(c.rteTitle || c.title)));
+    let added = 0, failed = 0, lastErr = null, pending = lanes.length;
+    state.busy = true; updatePlanButton(); if ($("moreIdeas")) $("moreIdeas").disabled = true;
+    status.classList.remove("err");
+    status.textContent = more ? "Finding more ideas…" : `Claude is finding meal ideas (${lanes.length} searches running)…`;
+    if (!prev) renderAll();
+
+    const got = {};   // ideas each focus has delivered, for the top-up round
+    const runLane = async (lane, li, count) => {
+      try {
+        const ask = buildPrompt({ ...base, count, lane, exclude: [...exclude, ...I.candidates.map((c) => c.rteTitle || c.title)] });
+        const raw = await state.sample.json(ask.prompt, { modelTier: "default", cache: false });
+        if (!raw || !Array.isArray(raw.recipes)) throw { code: "bad_shape" };
+        const stamp = Date.now().toString(36) + lane.id;
+        for (const [i, r] of raw.recipes.entries()) {
+          const c = costRecipe(r, ask, `${stamp}-${i}`), k = norm(c.rteTitle || c.title);
+          if (!k || seen.has(k)) continue;           // the same dish from two searches
+          seen.add(k); I.candidates.push(c); added++; got[lane.id] = (got[lane.id] || 0) + 1;
+        }
+        if (!I.notes && raw.notes) I.notes = String(raw.notes);
+      } catch (e) { failed++; lastErr = e; }
+      pending--;
+      if (state.ideas === I) {
+        renderAll();
+        const st = more ? $("moreStatus") : status;
+        if (st) st.textContent = pending ? `Found ${added} idea${added === 1 ? "" : "s"} so far, still looking…` : st.textContent;
+        if (!more && li === 0 && added) $("ideas").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      }
+    };
+    await Promise.all(lanes.map((lane, li) => runLane(lane, li, per)));
+    // Top-up: if the searches came back short, ask the focuses that under-delivered once more.
+    const short = lanes.filter((l) => (got[l.id] || 0) < per);
+    if (!more && added < target && short.length && state.ideas === I) {
+      const need = target - added;
+      const again = short.slice(0, 3);
+      pending = again.length;
+      status.textContent = `Found ${added} ideas so far, looking for a few more…`;
+      await Promise.all(again.map((lane, li) => runLane(lane, li + 1, Math.max(2, Math.ceil(need / again.length)))));
+    }
+
+    state.busy = false; updatePlanButton();
+    const st = more ? $("moreStatus") || status : status;
+    if (!added) {
+      st.classList.add("err");
+      const code = lastErr && lastErr.code;
+      st.textContent =
+        code === "not_granted" ? "Finding ideas needs permission to ask Claude. Allow it from this page's permissions to try again." :
+        code === "rate_limited" ? "You've hit your Claude usage limit for now. Try again later." :
+        more ? "No new ideas came back. Try again." : "Claude's answers came back empty or incomplete. Try again.";
+      if (!prev && !I.candidates.length) { state.ideas = null; renderAll(); }
+    } else {
+      st.textContent = more ? `Added ${added} more idea${added === 1 ? "" : "s"}.` :
+        `${I.candidates.length} ideas ready${failed ? ` (${failed} search${failed === 1 ? "" : "es"} didn't come back; tap Show me more ideas for more)` : ""}. Pick the ones you like.`;
+      saveChain = saveChain.then(saveIdeas);
+    }
+    if ($("moreIdeas")) $("moreIdeas").disabled = !state.sample;
   }
 
   /* ---------- fill the trolley with the Claude app's browser ---------- */
