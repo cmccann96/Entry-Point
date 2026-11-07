@@ -53,20 +53,26 @@ def parse_search_response(data: dict, search_term: str | None = None) -> list[Sa
         full = f"{brand} {name}".strip() if brand and not name.lower().startswith(brand.lower()) else name
         size = r.get("size")
         unit = (pricing.get("comparable") or None)
-        multibuy = (pricing.get("multiBuyPromotion") or {}).get("reward")
-        promo = pricing.get("specialType") or promo_type or "Special"
-        if multibuy:
-            promo = f"{promo} (multibuy)"
+        price, was = float(price), (float(was) if was and was > price else None)
+        mb = pricing.get("multiBuyPromotion") or {}
+        reward = mb.get("reward")
+        if reward and (mb.get("minQuantity") or 0) > 1 and reward < price:
+            # "Buy 2 for $20": reward is the per-item price when buying the multibuy quantity
+            was, price = price, float(reward)
+        promo = pricing.get("offerDescription")
+        if not promo:
+            special = pricing.get("specialType")
+            promo = special.replace("_", " ").title() if special else "Special"
         pid = r.get("id")
         items.append(
             SaleItem(
                 store="Coles",
                 name=full,
-                price=float(price),
-                was_price=float(was) if was and was > price else None,
+                price=price,
+                was_price=was,
                 size=size,
                 unit_price=unit,
-                promo=str(promo).replace("_", " ").title(),
+                promo=promo,
                 url=f"{BASE}/product/{_slug(f'{full} {size or ''}')}-{pid}" if pid else None,
                 search_term=search_term,
             )

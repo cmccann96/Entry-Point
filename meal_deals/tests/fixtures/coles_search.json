@@ -1,7 +1,58 @@
-{"pageProps": {"searchResults": {"noOfResults": 3, "results": [
-  {"_type": "PRODUCT", "id": 5551, "name": "Beef Mince 3 Star", "brand": "Coles", "size": "500g",
-   "pricing": {"now": 6.0, "was": 8.0, "promotionType": "SPECIAL", "specialType": "PERCENT_OFF", "comparable": "$12.00 per 1kg"}},
-  {"_type": "SINGLE_TILE", "id": "ad-1"},
-  {"_type": "PRODUCT", "id": 5552, "name": "Broccoli", "brand": "Coles", "size": "each",
-   "pricing": {"now": 1.9, "was": 0, "promotionType": null, "comparable": "$1.90 each"}}
-]}}}
+{
+ "pageProps": {
+  "searchResults": {
+   "noOfResults": 3,
+   "results": [
+    {
+     "_type": "PRODUCT",
+     "id": 5551,
+     "name": "Beef Mince 3 Star",
+     "brand": "Coles",
+     "size": "500g",
+     "pricing": {
+      "now": 6.0,
+      "was": 8.0,
+      "promotionType": "SPECIAL",
+      "specialType": "PERCENT_OFF",
+      "comparable": "$12.00 per 1kg"
+     }
+    },
+    {
+     "_type": "SINGLE_TILE",
+     "id": "ad-1"
+    },
+    {
+     "_type": "PRODUCT",
+     "id": 5552,
+     "name": "Broccoli",
+     "brand": "Coles",
+     "size": "each",
+     "pricing": {
+      "now": 1.9,
+      "was": 0,
+      "promotionType": null,
+      "comparable": "$1.90 each"
+     }
+    },
+    {
+     "_type": "PRODUCT",
+     "id": 5553,
+     "name": "Halal Kofta Lamb And Beef Mince",
+     "brand": "El- Amin's",
+     "size": "750g",
+     "pricing": {
+      "now": 11,
+      "was": 0,
+      "promotionType": "SPECIAL",
+      "specialType": "MULTI_SAVE",
+      "offerDescription": "Buy 2 for $20",
+      "multiBuyPromotion": {
+       "minQuantity": 2,
+       "reward": 10
+      }
+     }
+    }
+   ]
+  }
+ }
+}

@@ -27,12 +27,14 @@ def test_woolworths_parse_keeps_only_specials():
 
 def test_coles_parse_keeps_only_specials():
     items = coles.parse_search_response(load("coles_search.json"), "beef mince")
-    assert len(items) == 1
+    assert len(items) == 2
     mince = items[0]
     assert mince.name == "Coles Beef Mince 3 Star"
     assert (mince.price, mince.was_price, mince.savings) == (6.0, 8.0, 2.0)
     assert mince.promo == "Percent Off"
     assert mince.url.endswith("-5551")
+    kofta = items[1]
+    assert (kofta.price, kofta.was_price, kofta.promo) == (10.0, 11.0, "Buy 2 for $20")
 
 
 def test_coles_build_id_extraction():
@@ -64,7 +66,7 @@ def test_scrapers_with_fake_fetcher():
     ww = woolworths.WoolworthsScraper(f).scrape(["chicken", "pasta"])
     cl = coles.ColesScraper(f).scrape(["mince"])
     assert len(ww) == 4 and len(dedupe(ww)) == 2
-    assert len(cl) == 1
+    assert len(cl) == 2
     assert ("get", "https://www.coles.com.au/_next/data/B1/en/search/products.json",
             {"q": "mince", "page": 1, "filter_Special": "all"}) in f.calls
 
