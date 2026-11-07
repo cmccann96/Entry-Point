@@ -152,6 +152,15 @@ a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 20px; color: var(--muted); }
 .more { justify-self: center; }
 
+/* Recipe source picker and RecipeTin Eats cards */
+.seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%; }
+.seg button { border: 0; background: var(--surface); padding: 9px 14px; font-weight: 700; cursor: pointer; min-width: 0; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-checked="true"] { background: var(--ink); color: var(--bg); }
+.src { display: inline-block; vertical-align: middle; font-family: var(--f-body); font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border: 1px solid var(--line); color: var(--muted); border-radius: 4px; padding: 1px 6px; }
+.cook { display: grid; gap: 10px; justify-items: start; }
+.cook .btn { text-decoration: none; }
+
 /* Plan style picker */
 fieldset.group-set { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
 fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -199,6 +208,11 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     <fieldset class="group-set">
       <legend>What kind of week?</legend>
       <div class="style-grid" id="styles" role="radiogroup" aria-label="Plan style"></div>
+    </fieldset>
+    <fieldset class="group-set">
+      <legend>Recipes from</legend>
+      <div class="seg" id="source" role="radiogroup" aria-label="Recipe source"></div>
+      <p class="fine" id="sourceNote"></p>
     </fieldset>
     <div class="row">
       <div class="field">
@@ -262,7 +276,7 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     <button class="btn ghost more" id="more" type="button" hidden>Show more</button>
   </section>
 
-  <p class="foot">Prices come from the supermarkets' websites and can differ in store. Recipes and costs are Claude's estimates.</p>
+  <p class="foot">Prices come from the supermarkets' websites and can differ in store. Costs and ingredient amounts are Claude's estimates. RecipeTin Eats recipes are by Nagi Maehashi: this page links to them on recipetineats.com and doesn't copy them.</p>
 </div>
 
 <script>
@@ -306,6 +320,22 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
   if (state.style === "batch") { state.style = "balanced"; store.set("dd-style", "balanced"); if (!store.get("dd-each")) store.set("dd-each", "3"); }
   if (!STYLES.some((s) => s.id === state.style)) state.style = "balanced";
   state.extras = state.extras.filter((id) => EXTRAS.some((x) => x.id === id));
+
+  const SOURCES = [
+    { id: "rte", name: "RecipeTin Eats", note: "Claude picks dishes from RecipeTin Eats that suit the specials. Each meal links to Nagi's recipe on her site to cook it." },
+    { id: "claude", name: "Claude writes them", note: "Claude writes its own recipes around the specials, with the method on this page." },
+  ];
+  state.source = SOURCES.some((x) => x.id === store.get("dd-source")) ? store.get("dd-source") : "rte";
+  function renderSource() {
+    $("source").innerHTML = SOURCES.map((x) => `<button type="button" role="radio" data-source="${x.id}" aria-checked="${x.id === state.source}">${esc(x.name)}</button>`).join("");
+    $("sourceNote").textContent = (SOURCES.find((x) => x.id === state.source) || SOURCES[0]).note;
+  }
+  $("source").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-source]"); if (!b) return;
+    state.source = b.dataset.source; store.set("dd-source", state.source); renderSource();
+  });
+  renderSource();
+  const rteLink = (title) => "https://www.recipetineats.com/?s=" + encodeURIComponent(title);
 
   function renderStyles() {
     $("styles").innerHTML = STYLES.map((s) => `<button type="button" role="radio" class="style" data-style="${s.id}" aria-checked="${s.id === state.style}">
@@ -475,7 +505,7 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     return { item: it ? it.n : String(ref.item || "Item"), store: it ? it.s : String(ref.store || ""), size: it ? it.z || "" : "", url: it ? it.u || "" : "",
              promo: it ? it.o || "" : "", packs, price, full, cost: round2(packs * price), fullCost: round2(packs * full) };
   }
-  function costPlan(plan, chosen, defaultServes, nightsEach) {
+  function costPlan(plan, chosen, defaultServes, nightsEach, source) {
     const recipes = plan.recipes.map((r) => {
       const sale = (Array.isArray(r.sale) ? r.sale : []).map((s) => ({ ...priceLine(s, lookup(s, chosen), num(s.packs) || 1), use: String(s.use || s.qty || "") }));
       const other = (Array.isArray(r.other) ? r.other : []).map((o) => (typeof o === "string" ? { item: o, cost: 0 } : { item: String(o.item || ""), cost: num(o.cost) }));
@@ -489,6 +519,8 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
       return { title: String(r.title || "Dinner"), description: String(r.description || ""), minutes: num(r.minutes), servings: serves,
                nights: nightsCovered, ideas: (Array.isArray(r.ideas) ? r.ideas : []).map(String).slice(0, 7), storage: String(r.storage || ""),
                steps: (Array.isArray(r.steps) ? r.steps : []).map(String), sale, other, otherCost, total, fullTotal,
+               source: source === "rte" ? "rte" : "claude", rteTitle: String(r.rte_title || ""), recipeServes: num(r.recipe_serves),
+               swaps: (Array.isArray(r.swaps) ? r.swaps : []).map(String).slice(0, 6),
                perServe: round2(total / serves), perNight: round2(total / nightsCovered) };
     });
     const shopping = (Array.isArray(plan.shopping) ? plan.shopping : []).map((s) => priceLine(s, lookup(s, chosen), Math.max(1, Math.ceil(num(s.packs) || 1))));
@@ -535,15 +567,21 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
       <p class="fine">Dinner costs count only what each meal uses. Prices for specials are this week's ${esc(stores.join(" & ") || "store")} prices; other ingredients (${money(t.extras)} across the week) are Claude's estimates and are the same at full price.</p>
       ${p.recipes.map((r, i) => { const n = r.nights || 1, rs = round2(r.fullTotal - r.total); return `
         <details class="recipe"${i === 0 ? " open" : ""}>
-          <summary><span class="night${n > 1 ? " multi" : ""}">${nightLabel(n)}</span><h3>${esc(r.title)}</h3>
+          <summary><span class="night${n > 1 ? " multi" : ""}">${nightLabel(n)}</span><h3>${esc(r.title)}${r.source === "rte" ? ` <span class="src">RecipeTin Eats</span>` : ""}</h3>
             <span class="sub">${esc(r.description)}<br>${[n > 1 ? `cook once, eat ${n} nights` : "", r.minutes ? r.minutes + " min" : "", "serves " + r.servings].filter(Boolean).join(" · ")}</span>
             <span class="price-row"><b>${money(r.total)}</b>${n > 1 ? ` · ${money(r.perNight || round2(r.total / n))} a night` : ""} · ${money(r.perServe)} a serve · <s>${money(r.fullTotal)}</s>${rs > 0 ? ` <span class="save-t">save ${pct(rs, r.fullTotal)}%</span>` : ""}</span></summary>
           <div class="body">
+            ${r.source === "rte" ? `<div class="cook">
+              <a class="btn" href="${esc(rteLink(r.rteTitle || r.title))}" target="_blank" rel="noopener">Cook it with RecipeTin Eats ↗</a>
+              ${r.recipeServes ? `<p class="fine">${esc(r.rteTitle || r.title)} serves ${r.recipeServes}${r.servings && Math.abs(r.servings / r.recipeServes - 1) > 0.01 ? `, so make it ×${Math.round((r.servings / r.recipeServes) * 10) / 10} for ${r.servings} serves` : ""}.</p>` : ""}
+              ${r.swaps.length ? `<div><h4>Swaps for the specials</h4><ul>${r.swaps.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+            </div>` : ""}
             ${r.ideas && r.ideas.length ? `<div><h4>Each night</h4><ul>${r.ideas.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
             ${r.storage ? `<p class="fine"><b>Keeping it:</b> ${esc(r.storage)}</p>` : ""}
             <div><h4>On special</h4><ul class="costs">${r.sale.map((s) => `<li><span>${esc(s.use)}${s.use ? " · " : ""}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.item)} ↗</a>` : esc(s.item)} <span class="onsale">${esc(s.store)} ${money(s.price)}${s.full > s.price ? ` <s>${money(s.full)}</s>` : ""}</span>${s.packs !== 1 ? ` <span class="muted">× ${s.packs}</span>` : ""}</span><span class="amt">${money(s.cost)}</span></li>`).join("")}</ul></div>
             <div><h4>You'll also need</h4><ul class="costs">${r.other.map((o) => `<li><span>${esc(o.item)}</span><span class="amt">${o.cost ? "~" + money(o.cost) : ""}</span></li>`).join("")}</ul></div>
-            <div><h4>Method</h4><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>
+            ${r.source === "rte" ? `<p class="fine">These ingredient amounts are Claude's estimate of Nagi's recipe, for costing. Follow her recipe for the real quantities and method.</p>`
+              : `<div><h4>Method</h4><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>`}
           </div>
         </details>`; }).join("")}
       ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<div class="shop-row"><label for="tick-${j}"><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li-text">${it.packs} × ${esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span></label><span class="amt">${money(it.cost)}</span>${it.url ? `<a class="open" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.item)} at ${esc(it.store)}">Open ↗</a>` : ""}</div>`).join("")}</div>`).join("")}
@@ -613,6 +651,13 @@ fieldset.group-set legend { padding: 0; margin-bottom: 8px; font-size: .78rem; f
     const task = batch
       ? `TASK: Plan exactly ${meals} different meal${meals === 1 ? "" : "s"}. Each one is cooked once in a big batch and eaten on ${each} nights in a row by ${servings} ${servings === 1 ? "person" : "people"}, so every recipe has "nights": ${each} and "servings": ${each * servings} (${meals * each} dinners in total). Scale every quantity and pack count for all ${each * servings} serves. Choose dishes that keep and reheat well (curries, bolognese, chilli, stews, braises, soups, bakes, pulled meats). In "ideas", give one short line per night after the first with a different way to serve it so it doesn't get boring (e.g. "Night 2: in wraps with slaw"). In "storage", say how to keep it: cooked food keeps about 3 days in the fridge${each > 3 ? `, so say which nights' portions to freeze straight after cooking` : ", so say what to freeze if plans change"}.`
       : `TASK: Plan exactly ${meals} different dinner${meals === 1 ? "" : "s"}, each serving ${servings}; each recipe has "nights": 1.`;
+    const rte = state.source === "rte";
+    const sourceRule = rte
+      ? `RECIPES: Choose every dish from recipes published on RecipeTin Eats (recipetineats.com, by Nagi Maehashi). Only pick recipes you are confident are on her site, and put the exact published recipe title in "rte_title" and her recipe's usual number of serves in "recipe_serves". Do NOT write out her method or copy her text: the page links people to her recipe to cook it. In "sale" and "other", list the ingredients her recipe uses, scaled to this recipe's "servings", so the page can cost it. Where a special can stand in for an ingredient in her recipe (e.g. chicken thighs on special instead of breast), use it and say so in "swaps". Write "description" in your own words.`
+      : `RECIPES: Write your own recipes, with a short method in "steps".`;
+    const recipeShape = rte
+      ? `"title":"short dish name","rte_title":"exact title on RecipeTin Eats","recipe_serves":4,"description":"one sentence in your own words","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"swaps":["Uses the chicken thighs on special instead of breast"]`
+      : `"title":"","description":"one sentence","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]`;
     const prompt = `You are a practical home cook in Australia planning dinners around this week's supermarket specials.
 
 SPECIALS (only these count as "on special"; each has an id like #12, its category, price, any "was" price and price per kg or litre):
@@ -620,6 +665,7 @@ ${lines}
 
 ${task}${minutes && style.id !== "quick" ? `\nEach ${batch ? "batch cook" : "dinner"} must take no more than ${minutes} minutes of hands-on cooking.` : ""}
 PLAN STYLE: ${style.prompt}${extras ? `\nALSO:\n${extras}` : ""}${prefs ? `\nHOUSEHOLD NOTES (these win over everything else): ${prefs}` : ""}
+${sourceRule}
 Use ingredients that can be shared across dinners so nothing is wasted. Ignore specials that are not sensible dinner ingredients. Use Australian ingredient names and metric measures.
 
 COSTING (the page does the maths, so be precise with these numbers):
@@ -628,9 +674,9 @@ COSTING (the page does the maths, so be precise with these numbers):
 - "shopping" lists the whole packs of specials to buy for all the recipes together ("packs" is a whole number). For multibuy deals ("Buy 2 for..."), buy the deal quantity when it's worth it.
 
 Reply with only JSON in exactly this shape:
-{"recipes":[{"title":"","description":"one sentence","nights":${each},"servings":${each * servings},"minutes":35,"sale":[{"id":12,"packs":0.5,"use":"250g, sliced"}],"other":[{"item":"2 cloves garlic","cost":0.3}],"steps":["short step","short step"]${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips"}
-Keep each recipe to at most ${batch ? 10 : 8} steps.`;
-    return { prompt, chosen, servings, style: style.id, extras: [...state.extras], meals, each };
+{"recipes":[{${recipeShape}${batch ? `,"ideas":[${Array.from({ length: each - 1 }, (_, i) => `"Night ${i + 2}: ..."`).join(",")}],"storage":"..."` : ""}}],"shopping":[{"id":12,"packs":1}],"notes":"one or two short tips"}
+${rte ? "" : `Keep each recipe to at most ${batch ? 10 : 8} steps.`}`;
+    return { prompt, chosen, servings, style: style.id, extras: [...state.extras], meals, each, source: state.source };
   }
 
   $("planBtn").addEventListener("click", async () => {
@@ -644,7 +690,7 @@ Keep each recipe to at most ${batch ? 10 : 8} steps.`;
         onText: ({ text }) => { $("status").textContent = text ? `Writing recipes… (${Math.round(text.length / 100) / 10}k characters)` : "Claude is thinking…"; },
       });
       if (!raw || !Array.isArray(raw.recipes) || !raw.recipes.length) throw { code: "bad_shape", message: "The reply had no recipes." };
-      const plan = costPlan(raw, ask.chosen, ask.servings, ask.each);
+      const plan = costPlan(raw, ask.chosen, ask.servings, ask.each, ask.source);
       const saved = { plan, made: new Date().toISOString(), dealsUpdated: state.week?.updated || null, style: ask.style, extras: ask.extras };
       renderPlan(saved);
       $("status").textContent = "Done. Your plan is saved below.";

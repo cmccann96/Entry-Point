@@ -73,7 +73,13 @@ specials from the page's own database (document `weeks/current`), grouped into t
 categories and sub-types from `categories.py`, with a price per kg where the store gives one.
 The planner offers plan styles (balanced, best bang for buck, cheapest with meat, quick &
 easy, healthy, vegetarian), optional extras (kid friendly, lunches, etc.), and how many
-meals to cook, how many nights each meal lasts, and how many people eat each night. Its "Plan my dinners"
+meals to cook, how many nights each meal lasts, and how many people eat each night.
+
+Recipes come from RecipeTin Eats by default: Claude picks dishes from her site that suit
+the specials, and each meal links to a search for it on recipetineats.com. Her site's
+robots.txt opts out of Anthropic's crawlers, so nothing here fetches, indexes or copies her
+recipes; ingredient amounts used for costing are Claude's estimates. "Claude writes them"
+switches back to Claude's own recipes with the method on the page. Its "Plan my dinners"
 button asks Claude directly from the page, so no API key is needed there. The latest
 plan is saved to `plans/latest`, so it shows on every device.
 
