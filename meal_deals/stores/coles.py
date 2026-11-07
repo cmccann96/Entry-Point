@@ -73,7 +73,7 @@ def parse_search_response(data: dict, search_term: str | None = None) -> list[Sa
                 size=size,
                 unit_price=unit,
                 promo=promo,
-                url=f"{BASE}/product/{_slug(f'{full} {size or ''}')}-{pid}" if pid else None,
+                url=f"{BASE}/product/{_slug(full + ' ' + (size or ''))}-{pid}" if pid else None,
                 search_term=search_term,
             )
         )
