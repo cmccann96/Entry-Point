@@ -118,7 +118,11 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
 .checkout.sub2 { border-top: 0; padding-top: 0; font-weight: 400; color: var(--muted); }
 .save-t { color: var(--save); }
 .shop input:checked + .li { text-decoration: line-through; color: var(--muted); }
-.shop .li a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.shop-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 4px 0; }
+.shop-row label { padding: 0; min-width: 0; }
+.shop input:checked + .li-text { text-decoration: line-through; color: var(--muted); }
+a.open { font-weight: 700; font-size: .85rem; text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; white-space: nowrap; }
+.recipe ul.costs a, .deal .info a { font-weight: 700; }
 .fill { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; }
 .fill h3 { font-size: 1.1rem; }
 .log { margin: 0; padding-left: 1.2em; font-size: .88rem; max-height: 220px; overflow-y: auto; display: grid; gap: 2px; }
@@ -245,8 +249,8 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
       const off = pctOff(r);
       return `<article class="deal">
         <div class="tag"><div class="now">${money(r.p)}</div>${r.w ? `<div class="was">${money(r.w)}</div>` : ""}${off ? `<div class="off">${off}% OFF</div>` : ""}</div>
-        <div><div class="name">${r.u ? `<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.n)}</a>` : esc(r.n)}</div>
-        <div class="info">${esc(r.s)}${r.z ? " · " + esc(r.z) : ""}${r.o ? " · " + esc(r.o) : ""}</div></div>
+        <div><div class="name">${esc(r.n)}</div>
+        <div class="info">${esc(r.s)}${r.z ? " · " + esc(r.z) : ""}${r.o ? " · " + esc(r.o) : ""}${r.u ? ` · <a href="${esc(r.u)}" target="_blank" rel="noopener">Open at ${esc(r.s)} ↗</a>` : ""}</div></div>
       </article>`;
     }).join("") : `<div class="empty">No specials match “${esc(state.q)}”. Try another word or category.</div>`;
     $("more").hidden = rows.length <= state.shown;
@@ -320,13 +324,14 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
             <span class="sub">${esc(r.description)}<br>${[r.minutes ? r.minutes + " min" : "", "serves " + r.servings].filter(Boolean).join(" · ")}</span>
             <span class="price-row"><b>${money(r.total)}</b> · ${money(r.perServe)} a serve · <s>${money(r.fullTotal)}</s> full price</span></summary>
           <div class="body">
-            <div><h4>On special</h4><ul class="costs">${r.sale.map((s) => `<li><span>${esc(s.use)}${s.use ? " · " : ""}${esc(s.item)} <span class="onsale">${esc(s.store)} ${money(s.price)}${s.full > s.price ? ` <s>${money(s.full)}</s>` : ""}</span>${s.packs !== 1 ? ` <span class="muted">× ${s.packs}</span>` : ""}</span><span class="amt">${money(s.cost)}</span></li>`).join("")}</ul></div>
+            <div><h4>On special</h4><ul class="costs">${r.sale.map((s) => `<li><span>${esc(s.use)}${s.use ? " · " : ""}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.item)} ↗</a>` : esc(s.item)} <span class="onsale">${esc(s.store)} ${money(s.price)}${s.full > s.price ? ` <s>${money(s.full)}</s>` : ""}</span>${s.packs !== 1 ? ` <span class="muted">× ${s.packs}</span>` : ""}</span><span class="amt">${money(s.cost)}</span></li>`).join("")}</ul></div>
             <div><h4>You'll also need</h4><ul class="costs">${r.other.map((o) => `<li><span>${esc(o.item)}</span><span class="amt">${o.cost ? "~" + money(o.cost) : ""}</span></li>`).join("")}</ul></div>
             <div><h4>Method</h4><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>
           </div>
         </details>`).join("")}
-      ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<label><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li"><span>${it.packs} × ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.item)}</a>` : esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span><span class="amt">${money(it.cost)}</span></span></label>`).join("")}</div>`).join("")}
-        <p class="fine">Tap an item to open it at the store, then use Add to trolley there. Sign in to your store account first so the items go into your own trolley.</p>
+      ${p.shopping.length ? `<div class="shop"><h3>Shopping list</h3>${stores.map((st) => `<div><h4>${esc(st)}</h4>${p.shopping.map((it, j) => it.store !== st ? "" : `<div class="shop-row"><label for="tick-${j}"><input type="checkbox" id="tick-${j}" data-tick="${j}"${ticks[j] ? " checked" : ""}><span class="li-text">${it.packs} × ${esc(it.item)}${it.size ? ` (${esc(it.size)})` : ""}${it.promo ? ` <span class="muted">· ${esc(it.promo)}</span>` : ""}</span></label><span class="amt">${money(it.cost)}</span>${it.url ? `<a class="open" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(it.item)} at ${esc(it.store)}">Open ↗</a>` : ""}</div>`).join("")}</div>`).join("")}
+        <div class="go"><button class="btn ghost" id="copyList" type="button">Copy shopping list</button><span class="status" id="copyStatus" role="status"></span></div>
+        <p class="fine">Tick items off as you go. Tap <b>Open ↗</b> to see an item at the store and use Add to trolley there (sign in to your store account first). If a link doesn't open in your Claude app, copy the list and search for the items in the store's app.</p>
         <div class="checkout"><span>Specials at the checkout</span><span class="amt">${money(t.checkout)}</span></div>
         <div class="checkout sub2"><span>Full price for the same items</span><span class="amt"><s>${money(t.checkoutFull)}</s></span></div>
         <div class="checkout sub2"><span>Saving at the checkout</span><span class="amt save-t">${money(coSave)}</span></div>
@@ -341,7 +346,14 @@ ul.costs li > span:first-child, .shop .li > span:first-child { min-width: 0; }
       ${p.notes ? `<p class="notes">${esc(p.notes)}</p>` : ""}`;
     $("plan").hidden = false;
     state.lastPlan = p;
-    if ($("fillBtn")) { $("fillBtn").addEventListener("click", () => fillTrolley(p)); $("fillStop").addEventListener("click", () => state.fillAbort && state.fillAbort.abort()); }
+    if ($("fillBtn")) { $("fillBtn").addEventListener("click", () => fillTrolley(p)); $("fillStop").addEventListener("click", () => state.fillAbort && state.fillAbort.abort()); updateFillUI(); }
+    if ($("copyList")) $("copyList").addEventListener("click", () => {
+      const text = stores.map((st) => `${st}:\n` + p.shopping.filter((s) => s.store === st).map((s) => `- ${s.packs} x ${s.item}${s.size ? ` (${s.size})` : ""}`).join("\n")).join("\n\n");
+      const done = (msg) => { $("copyStatus").textContent = msg; };
+      try {
+        navigator.clipboard.writeText(text).then(() => done("Copied."), () => fallbackCopy(text, done));
+      } catch { fallbackCopy(text, done); }
+    });
     $("plan").querySelectorAll("[data-tick]").forEach((cb) => cb.addEventListener("change", () => { ticks[cb.dataset.tick] = cb.checked; store.set(key, JSON.stringify(ticks)); }));
   }
 
@@ -421,18 +433,50 @@ Keep each recipe to at most 8 steps.`;
     return text.length > 30000 ? text.slice(0, 30000) + "\n[truncated]" : text;
   }
 
+  function fallbackCopy(text, done) {
+    const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.append(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch {}
+    ta.remove(); done(ok ? "Copied." : "Couldn't copy here. Long-press the list to select it instead.");
+  }
+
+  // Resolve within ms or give up, so a slow host never leaves the button silent.
+  const within = (promise, ms) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+
+  // Is the Claude desktop app's browser reachable from this view? It's omitted from the listing elsewhere.
+  async function checkBrowser() {
+    try {
+      const mcp = await within(window.claude?.use?.("mcp") ?? Promise.resolve(null), 10000);
+      if (!mcp) return { ok: false };
+      const lt = await within(mcp.listTools().catch(() => null), 6000);
+      const srv = lt && Array.isArray(lt.servers) ? lt.servers.find((s) => s.server === BROWSER) : null;
+      return srv ? { ok: true, mcp, descs: Object.fromEntries((srv.tools || []).map((t) => [t.name, t.description || ""])) } : { ok: false, mcp };
+    } catch { return { ok: false }; }
+  }
+
+  function updateFillUI() {
+    if (!$("fillBtn") || state.filling) return;
+    const b = state.browser;
+    if (b === undefined) { $("fillBtn").textContent = "Add all to my trolley"; return; }
+    if (b && b.ok) { $("fillBtn").textContent = "Add all to my trolley"; $("fillBtn").disabled = false; return; }
+    $("fillBtn").textContent = "Open in the desktop app to use";
+    $("fillBtn").disabled = true;
+    $("fillStatus").classList.remove("err");
+    $("fillStatus").textContent = "The trolley helper needs the Claude desktop app on your computer, which has a built-in browser. On your phone, use the Open ↗ links above instead.";
+  }
+
   async function fillTrolley(plan) {
     if (state.filling) return;
-    const mcp = await window.claude?.use?.("mcp").catch(() => null);
     $("fillStatus").classList.remove("err");
-    if (!mcp || !state.sample) { $("fillStatus").classList.add("err"); $("fillStatus").textContent = "This only works when the page is open in the Claude desktop app on your computer."; return; }
-    const caps = await state.sample.limits().catch(() => null);
-    if (caps && !caps.tools) { $("fillStatus").classList.add("err"); $("fillStatus").textContent = "This Claude app can't run the trolley helper yet. Update the app and try again."; return; }
+    $("fillStatus").textContent = "Checking the Claude app's browser…";
+    $("fillBtn").disabled = true;
+    const b = state.browser && state.browser.ok ? state.browser : (state.browser = await checkBrowser());
+    if (!b.ok || !state.sample) { $("fillBtn").disabled = false; updateFillUI(); if (!state.sample) $("fillStatus").textContent = "Sign in to Claude to use the trolley helper."; return; }
+    const caps = await within(state.sample.limits().catch(() => null), 5000);
+    if (caps && !caps.tools) { $("fillBtn").disabled = false; $("fillStatus").classList.add("err"); $("fillStatus").textContent = "This Claude app can't run the trolley helper yet. Update the app and try again."; return; }
     const items = plan.shopping.filter((s) => s.url);
-    if (!items.length) { $("fillStatus").textContent = "There's nothing in the shopping list to add."; return; }
-
-    let descs = {};
-    try { const lt = await mcp.listTools(BROWSER); (lt.tools || []).forEach((t) => (descs[t.name] = t.description)); } catch {}
+    if (!items.length) { $("fillBtn").disabled = false; $("fillStatus").textContent = "There's nothing in the shopping list to add."; return; }
+    const mcp = b.mcp, descs = b.descs || {};
     const tools = BROWSER_TOOLS.map((name) => ({
       name: "browser_" + name,
       description: (`The built-in browser's "${name}" tool. Pass its own arguments as the object. ` + (descs[name] || "")).slice(0, 1000),
@@ -486,6 +530,7 @@ RULES: Never open the trolley checkout, never enter payment or delivery details,
     if (!claude || typeof claude.use !== "function") { $("meta").textContent = "Open this page on claude.ai or in the Claude app to see this week's specials."; return; }
     const [db, sample] = await Promise.all([claude.use("db").catch(() => null), claude.use("sample").catch(() => null)]);
     state.db = db; state.sample = sample; updatePlanButton();
+    checkBrowser().then((b) => { state.browser = b; updateFillUI(); });
     if (!db) { $("meta").textContent = "Sign in to claude.ai to see this week's specials."; return; }
     const timer = setTimeout(() => { if (!state.week) $("meta").textContent = "Still loading specials… check your connection."; }, 10000);
     db.doc("weeks/current").onSnapshot((snap) => {
